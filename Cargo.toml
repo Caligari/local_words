@@ -1,0 +1,31 @@
+[package]
+name = "local_words"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = "0.4"
+fern = "0.7"
+csv = "1.4"
+json = "0.12"
+words-count = "0.1"
+anyhow = "1.0"
+thiserror = "2.0"
+changecase = "0.0"
+zip = "8.1"
+nom = "8"
+enum-iterator = "2.3"
+array-bytes = "9.3"
+directories-next = "2.0.0"
+calamine = "0.34"
+
+eframe = "0.33"
+egui_extras = "0.33"
+egui-file-dialog = "0.12"
+fluent-templates = "0.13"
+i18n-embed-fl = "0.10"
+i18n-embed = { version = "0.16", features = [ "fluent-system", "desktop-requester",] }
+rust-embed = "8.2"
+crossbeam-channel = "0.5"
+pot = "3.0"
+versions = "7.0"
