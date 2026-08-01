@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Result;
-use eframe::egui::{ComboBox, Context, Key, Label, RichText, Sense, Separator, Ui};
+use eframe::egui::{ComboBox, Key, Label, RichText, Sense, Separator, Ui};
 use enum_iterator::{Sequence, all};
 use log::{debug, error, info};
 use versions::SemVer;
@@ -98,7 +98,7 @@ impl Dictionary {
         Ok(())
     }
 
-    pub fn show(&mut self, ui: &mut Ui, ctx: &Context) -> Option<AppStatus> {
+    pub fn show(&mut self, ui: &mut Ui) -> Option<AppStatus> {
         use DictionaryState::*;
 
         let mut new_show_state = None;
@@ -210,8 +210,8 @@ impl Dictionary {
                 // The main content
                 match &self.show.state {
                     Overview => self.show_overview(ui),
-                    Primary => self.show_primary(ui, ctx),
-                    Translation(lang) => self.show_translation(*lang, ui, ctx),
+                    Primary => self.show_primary(ui),
+                    Translation(lang) => self.show_translation(*lang, ui),
                     Export => self.show_export(ui),
                     // _ => warn!("not implemented directory state"),
                 }
@@ -294,11 +294,11 @@ impl Dictionary {
         });
     }
 
-    fn show_string(&mut self, language: Option<Language>, ui: &mut Ui, ctx: &Context) {
+    fn show_string(&mut self, language: Option<Language>, ui: &mut Ui) {
         let missing_lines = self.words.missing_lines(language);
         ui.vertical(|ui| {
             // tag selector
-            self.tag_selector(missing_lines, ui, ctx);
+            self.tag_selector(missing_lines, ui);
             ui.allocate_ui(STRING_RECT, |ui| {
                 ui.set_min_height(STRING_HEIGHT);
                 ui.label(self.words.master_line(self.show.selected_tag));
@@ -325,12 +325,12 @@ impl Dictionary {
         });
     }
 
-    fn show_translation(&mut self, language: Language, ui: &mut Ui, ctx: &Context) {
-        self.show_string(Some(language), ui, ctx);
+    fn show_translation(&mut self, language: Language, ui: &mut Ui) {
+        self.show_string(Some(language), ui);
     }
 
-    fn show_primary(&mut self, ui: &mut Ui, ctx: &Context) {
-        self.show_string(None, ui, ctx);
+    fn show_primary(&mut self, ui: &mut Ui) {
+        self.show_string(None, ui);
     }
 
     fn show_export(&mut self, ui: &mut Ui) {
@@ -387,7 +387,7 @@ impl Dictionary {
         });
     }
 
-    fn tag_selector(&mut self, missing_lines: Vec<usize>, ui: &mut Ui, ctx: &Context) {
+    fn tag_selector(&mut self, missing_lines: Vec<usize>, ui: &mut Ui) {
         let tags: Vec<RichText> = {
             self.tags()
                 .iter()
@@ -427,7 +427,7 @@ impl Dictionary {
 
         // handle keyboard input - is this right to be here?
 
-        ctx.input(|i| {
+        ui.input(|i| {
             if i.key_pressed(Key::ArrowUp) {
                 self.show.selected_tag = self.show.selected_tag.saturating_sub(1);
             }
@@ -495,7 +495,11 @@ impl Dictionary {
         if let Err(e) = write_lang_csv(
             &master_filepath,
             &self.words.tags,
-            &language.lines().iter().map(|ld| ld.line().0).collect(),
+            &language
+                .lines()
+                .iter()
+                .map(|ld| ld.current_line().0)
+                .collect(),
             &self.words.master_context,
         ) {
             error!(

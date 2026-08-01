@@ -13,9 +13,9 @@ use directories_next::ProjectDirs;
 use eframe::{
     CreationContext, Frame,
     egui::{
-        Align, Button, CentralPanel, Color32, Context, FontData, FontDefinitions, FontFamily,
-        FontId, Layout, MenuBar, RichText, Separator, Spinner, TopBottomPanel, Ui, Vec2,
-        ViewportCommand, style::TextStyle,
+        Align, Button, CentralPanel, Color32, FontData, FontDefinitions, FontFamily, FontId,
+        Layout, MenuBar, Panel, RichText, Separator, Spinner, Ui, Vec2, ViewportCommand,
+        style::TextStyle,
     },
 };
 use log::{debug, error, info, warn};
@@ -66,16 +66,16 @@ pub struct App {
 #[allow(clippy::match_single_binding)]
 #[allow(unused_imports)]
 impl eframe::App for App {
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut Frame) {
         use AppStatus::*;
 
-        ctx.set_visuals(self.settings.theme().default_visuals());
+        ui.set_visuals(self.settings.theme().default_visuals());
 
-        self.show_top(ctx, frame);
-        self.show_footer(ctx);
+        self.show_top(ui, frame);
+        self.show_footer(ui);
 
         if let Some(new_status) = CentralPanel::default()
-            .show(ctx, |ui: &mut Ui| {
+            .show(ui, |ui: &mut Ui| {
                 // this returns Option<AppStatus>
                 match (&self.status, &mut self.data) {
                     (AppStatus::Starting, _) => {
@@ -91,12 +91,12 @@ impl eframe::App for App {
 
                     // we have no data, we must create or load some
                     // this returns Option<AppStatus>
-                    (_status, None) => self.no_data(ui, ctx),
+                    (_status, None) => self.no_data(ui),
 
                     // We have data, what do we show?
                     (_status, Some(data)) => {
                         // we have data, so show what info we need
-                        data.show(ui, ctx)
+                        data.show(ui)
                         // this returns Option<AppStatus>
                     }
                 }
@@ -121,7 +121,7 @@ impl eframe::App for App {
         // }
         // }
 
-        self.child_windows.show_windows(ctx);
+        self.child_windows.show_windows(ui);
     }
 
     // This runs automatically when the application closes
@@ -164,8 +164,8 @@ impl App {
         })
     }
 
-    fn show_top(&mut self, ctx: &Context, _frame: &mut Frame) {
-        TopBottomPanel::top("top").show(ctx, |ui| {
+    fn show_top(&mut self, ui: &mut Ui, _frame: &mut Frame) {
+        Panel::top("top").show(ui, |ui| {
             MenuBar::new().ui(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                     // when can we save/load?
@@ -268,7 +268,7 @@ impl App {
                         ui.add(Separator::default().spacing(2.));
                         if ui.button(fl!("menu_exit")).clicked() {
                             info!("Requested Exit");
-                            ctx.send_viewport_cmd(ViewportCommand::Close);
+                            ui.send_viewport_cmd(ViewportCommand::Close);
                         }
                     });
 
@@ -299,8 +299,8 @@ impl App {
         });
     }
 
-    fn show_footer(&mut self, ctx: &Context) {
-        TopBottomPanel::bottom("footer").show(ctx, |ui| {
+    fn show_footer(&mut self, ui: &mut Ui) {
+        Panel::bottom("footer").show(ui, |ui| {
             ui.add_space(5.);
             ui.horizontal(|ui| {
                 ui.label(self.status.to_string());
@@ -328,7 +328,7 @@ impl App {
         });
     }
 
-    fn no_data(&mut self, ui: &mut Ui, ctx: &Context) -> Option<AppStatus> {
+    fn no_data(&mut self, ui: &mut Ui) -> Option<AppStatus> {
         let mut ret = None;
         let mut child = None;
         let mut message = None;
@@ -377,7 +377,7 @@ impl App {
                     AppStatus::CreateNew(stage_cell) => {
                         // let mut stage = stage_cell.borrow_mut();
                         (child, ret, message, data) =
-                            self.show_create(&mut stage_cell.borrow_mut(), ui, ctx);
+                            self.show_create(&mut stage_cell.borrow_mut(), ui);
                     }
 
                     _ => {
@@ -429,7 +429,6 @@ impl App {
         &self,
         stage: &mut RefMut<CreateStage>,
         ui: &mut Ui,
-        ctx: &Context,
     ) -> (
         Option<FileDialogType>,
         Option<AppStatus>,
@@ -570,7 +569,7 @@ impl App {
                         }
 
                         CreateStage::Create(create_data, ref loader) => {
-                            ctx.request_repaint();
+                            ui.request_repaint();
                             let respond = create_dictionary_thread(&create_data, loader);
                             info!("CreateStage Create => WaitLoad");
                             new_stage = Some(CreateStage::WaitLoad(respond, create_data));
@@ -581,7 +580,7 @@ impl App {
                                 ui.add_space(80.);
                                 ui.add(Spinner::default().size(50.));
                             });
-                            ctx.request_repaint();
+                            ui.request_repaint();
 
                             if let Ok(response) = load_result.try_recv() {
                                 debug!("got load response");

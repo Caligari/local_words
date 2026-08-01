@@ -29,11 +29,19 @@ impl LineData {
         }
     }
 
-    pub fn replace_modified(&mut self, line: String) {
-        self.modification = if line.len() > 0 { Some(line) } else { None }
+    pub fn replace_modified(&mut self, opt_line: Option<String>) {
+        self.modification = if let Some(line) = opt_line {
+            Some(line)
+        } else {
+            None
+        }
     }
 
-    pub fn line(&self) -> (&str, ContentType) {
+    pub fn base_line(&self) -> &str {
+        &self.main_line
+    }
+
+    pub fn current_line(&self) -> (&str, ContentType) {
         if let Some(mod_line) = self.modification.as_ref() {
             (mod_line, ContentType::InProgress)
         } else {
@@ -41,6 +49,7 @@ impl LineData {
         }
     }
 
+    /// This reports on the current line
     pub fn is_empty(&self) -> bool {
         if let Some(mod_line) = self.modification.as_ref() {
             mod_line.is_empty()
@@ -332,7 +341,7 @@ impl Translation {
     // returns the current line
     pub fn line(&self, string_id: usize) -> (&str, ContentType) {
         if string_id < self.lines.len() {
-            self.lines[string_id].line()
+            self.lines[string_id].current_line()
         } else {
             ("", ContentType::Master)
         }

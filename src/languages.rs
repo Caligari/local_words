@@ -16,7 +16,15 @@ const FRENCH: LanguageData = ["french", "fre", FONT_BASE]; // internal, external
 const GERMAN: LanguageData = ["german", "ger", FONT_BASE];
 const CHINESE: LanguageData = ["chinese", "zho-CN", FONT_CHINESE];
 const PORTUGUESE: LanguageData = ["portuguese-br", "por-BR", FONT_BASE];
+const CZECH: LanguageData = ["czech", "ces", FONT_BASE];
+const DUTCH: LanguageData = ["dutch", "dut", FONT_BASE];
+const ITALIAN: LanguageData = ["italian", "ita", FONT_BASE];
+const POLISH: LanguageData = ["polish", "pol", FONT_BASE]; // need a font
+const RUSSIAN: LanguageData = ["russian", "rus", FONT_BASE]; // need a font
+const SPANISH: LanguageData = ["spanish", "spa", FONT_BASE];
 // !! when updating this, add to Language::language_data() and Language enum
+//
+// CZECH, DUTCH, ITALIAN, POLISH, RUSSIAN, SPANISH
 
 // "../assets/fonts/Noto_Serif/static/NotoSerif-Regular.ttf"
 const FONT_BASE_FILE: &str = "../assets/fonts/Noto_Sans/static/NotoSans-Regular.ttf"; // not used in const
@@ -118,12 +126,21 @@ pub enum Language {
     German,
     Chinese,
     PortugueseBr,
+    Czech,
+    Dutch,
+    Italian,
+    Polish,
+    Russian,
+    Spanish,
 }
 
 impl Language {
     fn language_data(&self) -> &LanguageData {
         // !!!! This must match the Language enum order above
-        const KNOWN_LANGUAGES: &[LanguageData] = &[ENGLISH, FRENCH, GERMAN, CHINESE, PORTUGUESE];
+        const KNOWN_LANGUAGES: &[LanguageData] = &[
+            ENGLISH, FRENCH, GERMAN, CHINESE, PORTUGUESE, CZECH, DUTCH, ITALIAN, POLISH, RUSSIAN,
+            SPANISH,
+        ];
         &KNOWN_LANGUAGES[self.language_index()]
     }
 
@@ -135,6 +152,12 @@ impl Language {
             German => fl!("german"),
             Chinese => fl!("chinese"),
             PortugueseBr => fl!("portuguese-br"),
+            Czech => fl!("czech"),
+            Dutch => fl!("dutch"),
+            Italian => fl!("italian"),
+            Polish => fl!("polish"),
+            Russian => fl!("russian"),
+            Spanish => fl!("spanish"),
         }
     }
 

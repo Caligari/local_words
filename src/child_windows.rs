@@ -1,7 +1,7 @@
 use std::{fs::create_dir_all, path::PathBuf, sync::Arc};
 
 use eframe::egui::{
-    Align, CentralPanel, Context, Layout, RichText, ScrollArea, ViewportBuilder, ViewportId,
+    Align, CentralPanel, Context, Layout, RichText, ScrollArea, Ui, ViewportBuilder, ViewportId,
     mutex::RwLock,
 };
 use egui_file_dialog::{DialogState, FileDialog, OpeningMode};
@@ -102,31 +102,31 @@ impl ChildWindows {
         self.selected_file.read().clone()
     }
 
-    pub fn show_windows(&mut self, ctx: &Context) {
+    pub fn show_windows(&mut self, ui: &Ui) {
         // Note: this needs to update its own show/hide, if appropriate
 
         let about_value = *self.show_about.read();
         if about_value {
-            self.about(ctx);
+            self.about(ui);
         }
 
-        if let Some(new_file) = self.file_dialog_master_zip_load.update(ctx) {
+        if let Some(new_file) = self.file_dialog_master_zip_load.update(ui) {
             *self.selected_file.write() = new_file;
         }
 
-        if let Some(new_file) = self.file_dialog_master_dir_load.update(ctx) {
+        if let Some(new_file) = self.file_dialog_master_dir_load.update(ui) {
             *self.selected_file.write() = new_file;
         }
 
-        if let Some(new_file) = self.file_dialog_import_zip.update(ctx) {
+        if let Some(new_file) = self.file_dialog_import_zip.update(ui) {
             *self.selected_file.write() = new_file;
         }
 
-        if let Some(new_file) = self.file_dialog_export_zip.update(ctx) {
+        if let Some(new_file) = self.file_dialog_export_zip.update(ui) {
             *self.selected_file.write() = new_file;
         }
 
-        if let Some(new_file) = self.file_dialog_externals_zip.update(ctx) {
+        if let Some(new_file) = self.file_dialog_externals_zip.update(ui) {
             *self.selected_file.write() = new_file;
         }
 

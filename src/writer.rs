@@ -39,7 +39,7 @@ pub fn create_externals_zip(
         debug!("write of {} started", filepath.to_string_lossy());
         archive.start_file_from_path(&filepath, options)?;
         for (tag, l_data) in main_tags.iter().zip(trans.lines()) {
-            let (item, _ctype) = l_data.line(); // assuming we want the current version
+            let (item, _ctype) = l_data.current_line(); // assuming we want the current version
             writeln!(archive, "{tag} {item}")?;
         }
         debug!("write of {} completed", filepath.to_string_lossy());
@@ -79,7 +79,7 @@ pub fn create_vrt_zip(
         debug!("write of {} started", filepath.to_string_lossy());
         archive.start_file_from_path(&filepath, options)?;
         for (tag, l_data) in tags.iter().zip(trans.lines()) {
-            let (item, _ctype) = l_data.line(); // assuming we want the current version
+            let (item, _ctype) = l_data.current_line(); // assuming we want the current version
             writeln!(archive, "{tag} {item}")?;
         }
         debug!("write of {} completed", filepath.to_string_lossy());
