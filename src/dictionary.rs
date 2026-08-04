@@ -637,8 +637,8 @@ impl Display for LanguageType {
 struct Words {
     master: Translation,
     tags: TagList,
-    core_translations: HashMap<Language, BTreeMap<LanguageType, Translation>>,
-    work_translations: HashMap<Language, BTreeMap<LanguageType, Translation>>,
+    core_translations: HashMap<Language, Translation>,
+    work_translations: HashMap<Language, Translation>,
     master_context: ContextList,
     versions: ContentVersions,
 }
@@ -659,6 +659,8 @@ impl Words {
         self.core_translations.keys().copied().collect()
     }
 
+    // add_core update or replace
+    // add_work update or replace
     fn add_translation(&mut self, translation: &Translation, language_type: LanguageType) {
         let language = translation.language();
 
@@ -671,10 +673,7 @@ impl Words {
                     error!("unable to add language {language}, {language_type}: already present");
                 }
             })
-            .or_insert(BTreeMap::from([(
-                language_type.clone(),
-                translation.clone(),
-            )]));
+            .or_insert(translation.clone());
     }
 
     fn translation_language(&self, language: Language) -> Option<(&Translation, LanguageType)> {
@@ -1003,4 +1002,10 @@ impl Display for ContentVersions {
                 .join(", ")
         )
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateReplace {
+    Update,
+    Replace,
 }
