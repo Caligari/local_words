@@ -9,14 +9,11 @@ use rust_embed::RustEmbed;
 #[folder = "assets/text"]
 struct Localizations;
 
+pub static mut CURRENT_LANGUAGES: LazyLock<LanguagesList> = LazyLock::new(|| LanguagesList::new());
+
 #[allow(dead_code)]
-pub static LANGUAGE_LOADER: LazyLock<FluentLanguageLoader> = LazyLock::new(|| {
-    let loader = fluent_language_loader!();
-    let languages = DesktopLanguageRequester::requested_languages();
-    i18n_embed::select(&loader, &Localizations, &languages).unwrap();
-    loader.set_use_isolating(false);
-    loader
-});
+pub static mut LANGUAGE_LOADER: LazyLock<MyLanguageLoader> =
+    LazyLock::new(|| MyLanguageLoader::new());
 
 pub static LANGUAGES_LIST: LazyLock<Vec<LanguageIdentifier>> = LazyLock::new(|| {
     let loader = fluent_language_loader!();
@@ -32,10 +29,14 @@ pub static FALLBACK_LANGUAGE: LazyLock<LanguageIdentifier> = LazyLock::new(|| {
 #[allow(unused_macros)]
 macro_rules! fl {
     ($message_id:literal) => {
-        ::i18n_embed_fl::fl!($crate::localize::LANGUAGE_LOADER, $message_id)
+        ::i18n_embed_fl::fl!(unsafe{
+            #[allow(static_mut_refs)]
+            $crate::localize::LANGUAGE_LOADER.loader()}, $message_id)
     };
     ($message_id:literal, $($args:expr),*) => {
-        ::i18n_embed_fl::fl!($crate::localize::LANGUAGE_LOADER, $message_id, $($args), *)
+        ::i18n_embed_fl::fl!(unsafe{
+            #[allow(static_mut_refs)]
+            $crate::localize::LANGUAGE_LOADER.loader()}, $message_id, $($args), *)
     };
 }
 
@@ -67,3 +68,73 @@ macro_rules! arg {
 
 #[allow(unused_imports)]
 pub(crate) use {arg, fl};
+
+// ======================
+// LanguagesList
+//
+pub struct LanguagesList {
+    languages: Vec<LanguageIdentifier>,
+}
+
+impl LanguagesList {
+    pub fn new() -> Self {
+        LanguagesList {
+            languages: DesktopLanguageRequester::requested_languages(),
+        }
+    }
+
+    pub fn languages(&self) -> Vec<LanguageIdentifier> {
+        self.languages.clone()
+    }
+
+    pub fn set_language(&mut self, lang: LanguageIdentifier) {
+        let new_first = if let Some(cur_pos) = self.languages.iter().position(|li| *li == lang) {
+            self.languages.remove(cur_pos)
+        } else {
+            lang
+        };
+        self.languages.insert(0, new_first);
+        unsafe {
+            #[allow(static_mut_refs)]
+            LANGUAGE_LOADER.refresh();
+        }
+    }
+}
+
+// ==================
+// MyLanguageLoader
+//
+pub struct MyLanguageLoader {
+    loader: FluentLanguageLoader,
+}
+
+impl MyLanguageLoader {
+    fn new() -> Self {
+        MyLanguageLoader {
+            loader: MyLanguageLoader::new_loader(),
+        }
+    }
+
+    pub fn loader(&self) -> &FluentLanguageLoader {
+        &self.loader
+    }
+
+    fn new_loader() -> FluentLanguageLoader {
+        let loader = fluent_language_loader!();
+        let languages = unsafe {
+            #[allow(static_mut_refs)]
+            CURRENT_LANGUAGES.languages()
+        };
+        i18n_embed::select(&loader, &Localizations, &languages).unwrap();
+        loader.set_use_isolating(false);
+        loader
+    }
+
+    fn refresh(&mut self) {
+        self.loader = MyLanguageLoader::new_loader();
+    }
+
+    pub fn current_language(&self) -> LanguageIdentifier {
+        self.loader.current_language()
+    }
+}

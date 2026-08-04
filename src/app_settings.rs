@@ -1,14 +1,13 @@
-use std::{fmt::Display, ops::Deref};
+use std::fmt::Display;
 
 use eframe::egui::{ComboBox, RichText, Ui};
 use fluent_templates::LanguageIdentifier;
-use i18n_embed::LanguageLoader;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 
 use crate::{
     app::{AppStatus, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, INDENT_COLUMN_WIDTH},
     languages::{Language, Languages, select_language},
-    localize::{FALLBACK_LANGUAGE, LANGUAGE_LOADER, LANGUAGES_LIST, fl},
+    localize::{CURRENT_LANGUAGES, LANGUAGE_LOADER, LANGUAGES_LIST, fl},
 };
 
 const ZOOM: f32 = 1.0;
@@ -26,9 +25,10 @@ pub struct AppSettings {
 #[allow(dead_code)]
 impl AppSettings {
     pub fn new(internal_path: &str, master_language: Language) -> Self {
-        let language_loader = &*LANGUAGE_LOADER;
-        let current_language = language_loader.current_language();
-        // let fallback_language = &*FALLBACK_LANGUAGE;
+        let current_language = unsafe {
+            let language_loader = &*LANGUAGE_LOADER;
+            language_loader.current_language()
+        };
         AppSettings {
             theme: Theme::default(),
             zoom: ZOOM,
@@ -108,6 +108,11 @@ impl AppSettings {
                                 // Handle selection change
                                 if let Some(language) = languages.get(selected) {
                                     self.ui_language = language.clone();
+                                    unsafe {
+                                        #[allow(static_mut_refs)]
+                                        CURRENT_LANGUAGES.set_language(language.clone());
+                                    }
+
                                     info!("changed ui language to {}", language.language.as_str())
                                 } else {
                                     warn!("unable to set language {selected}");
