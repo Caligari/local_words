@@ -6,10 +6,10 @@ use std::{
 
 use anyhow::{Result, anyhow};
 // use changecase::ChangeCase;
-use log::{debug, error, info, warn};
+use log::{error, info};
 
 use crate::{
-    dictionary::{ContentType, ContextList, Location, TagList},
+    dictionary::{ContentType, Location, TagList, UpdateReplace},
     languages::Language,
     loader::{Loaded, LoaderOld},
     localize::{arg, fl},
@@ -29,12 +29,14 @@ impl LineData {
         }
     }
 
+    // ? replace the modified as well, when this is replaced?
+    pub fn replace_main(&mut self, line: String) {
+        self.main_line = line;
+        self.modification = None; // ?? Is this what we intend
+    }
+
     pub fn replace_modified(&mut self, opt_line: Option<String>) {
-        self.modification = if let Some(line) = opt_line {
-            Some(line)
-        } else {
-            None
-        }
+        self.modification = opt_line
     }
 
     pub fn base_line(&self) -> &str {
@@ -117,6 +119,53 @@ impl Translation {
             extra_lines,
             missing,
         }
+    }
+
+    pub fn update_from_loaded(&mut self, loaded: &Loaded, tags: &TagList, replace: UpdateReplace) {
+        let language = self.language;
+        info!("updating translation for {language} from loaded data ({replace})");
+        let mut missing = Vec::new();
+        let extra_lines = loaded.all_unknowns(); // incorporate into translation's list
+        let mut count = 0;
+
+        match replace {
+            UpdateReplace::Replace => {
+                for (i, tag) in tags.iter().enumerate() {
+                    if let Some(line) = loaded.get_line(tag) {
+                        self.lines[i].replace_main(line.to_string());
+                        if let Some(ind) = self.missing.iter().find(|&&x| x == i) {
+                            self.missing.remove(*ind); // no longer missing
+                        }
+                        count += 1;
+                    } else {
+                        missing.push(i); // ?? should this remove any existing line?
+                    }
+                }
+            }
+            UpdateReplace::Update => {
+                for (i, tag) in tags.iter().enumerate() {
+                    let opt_line = if let Some(line) = loaded.get_line(tag) {
+                        Some(line.to_string())
+                    } else {
+                        missing.push(i);
+                        None
+                    };
+                    self.lines[i].replace_modified(opt_line);
+                    count += 1;
+                }
+            }
+        }
+
+        let extra_count = extra_lines.len();
+        self.extra_lines.extend(extra_lines.into_iter());
+        // what to do with missing list? ignore it?
+        info!(
+            "update language {language}: {replace} {} lines ({} tags missing, {} extras), with {} words",
+            count,
+            missing.len(),
+            extra_count,
+            loaded.words()
+        );
     }
 
     // pub fn from_loader(

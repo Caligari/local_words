@@ -9,7 +9,7 @@ use std::{
 use anyhow::Result;
 use eframe::egui::{ComboBox, Key, Label, RichText, Sense, Separator, Ui};
 use enum_iterator::{Sequence, all};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use versions::SemVer;
 
 use crate::{
@@ -76,12 +76,7 @@ impl Dictionary {
         })
     }
 
-    pub fn load_translation(
-        &mut self,
-        language: Language,
-        loader: &Loader,
-        language_type: LanguageType,
-    ) -> Result<()> {
+    pub fn load_core_translation(&mut self, language: Language, loader: &Loader) -> Result<()> {
         let tags = &self.words.tags;
         let loaded = loader.load_translation(language, tags)?;
         let translation = Translation::from_loaded(&loaded, language, tags);
@@ -94,7 +89,7 @@ impl Dictionary {
             loaded.words()
         );
 
-        self.add_translation(translation, language_type);
+        self.add_core_translation(translation);
         Ok(())
     }
 
@@ -443,8 +438,14 @@ impl Dictionary {
         self.primary_language.to_string()
     }
 
-    fn add_translation(&mut self, translation: Translation, language_type: LanguageType) {
-        self.words.add_translation(&translation, language_type);
+    // we expect this is a new translation
+    fn add_core_translation(&mut self, translation: Translation) {
+        self.words.add_core_translation(&translation);
+    }
+
+    // we expect this is a new translation
+    fn add_work_translation(&mut self, translation: Translation) {
+        self.words.add_core_translation(&translation);
     }
 
     pub fn translations(&self) -> Vec<&Translation> {
@@ -528,9 +529,9 @@ impl Dictionary {
         true
     }
 
-    pub fn add_translations(&mut self, translations: Vec<Translation>) {
+    pub fn add_core_translations(&mut self, translations: Vec<Translation>) {
         for trans in translations {
-            self.add_translation(trans, LanguageType::External); // is that what you want?
+            self.add_core_translation(trans); // is that what you want?
         }
     }
 }
@@ -659,33 +660,38 @@ impl Words {
         self.core_translations.keys().copied().collect()
     }
 
-    // add_core update or replace
-    // add_work update or replace
-    fn add_translation(&mut self, translation: &Translation, language_type: LanguageType) {
+    fn add_core_translation(&mut self, translation: &Translation) {
         let language = translation.language();
 
-        self.core_translations
-            .entry(*language)
-            .and_modify(|lang| {
-                if !lang.contains_key(&language_type) {
-                    lang.insert(language_type.clone(), translation.clone()); // return is None if not present
-                } else {
-                    error!("unable to add language {language}, {language_type}: already present");
-                }
-            })
-            .or_insert(translation.clone());
+        if self
+            .core_translations
+            .insert(*language, translation.clone())
+            .is_some()
+        {
+            warn!("replacing existing {language} translation, when adding translation");
+        }
+    }
+
+    fn add_work_translation(&mut self, translation: &Translation) {
+        let language = translation.language();
+
+        if self
+            .core_translations
+            .insert(*language, translation.clone())
+            .is_some()
+        {
+            warn!("replacing existing {language} translation, when adding translation");
+        }
     }
 
     fn translation_language(&self, language: Language) -> Option<(&Translation, LanguageType)> {
         if language == *self.master.language() {
             Some((&self.master, LanguageType::Internal))
-        } else if let Some(translations) = self.core_translations.get(&language) {
-            if let Some((typ, trans)) = translations.iter().last() {
-                // !! I think we want the last one
-                Some((trans, *typ))
-            } else {
-                None
-            }
+        } else if let Some(translation) = self.work_translations.get(&language) {
+            Some((translation, LanguageType::InProgress))
+        } else if let Some(translation) = self.core_translations.get(&language) {
+            // !! I think we want the last one
+            Some((translation, LanguageType::Internal))
         } else {
             None
         }
@@ -1008,4 +1014,19 @@ impl Display for ContentVersions {
 pub enum UpdateReplace {
     Update,
     Replace,
+}
+
+impl Display for UpdateReplace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use UpdateReplace::*;
+
+        write!(
+            f,
+            "{}",
+            match self {
+                Update => "update",
+                Replace => "replace",
+            }
+        )
+    }
 }

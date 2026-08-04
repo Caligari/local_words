@@ -23,7 +23,7 @@ use log::{debug, error, info, warn};
 use crate::{
     app_settings::AppSettings,
     child_windows::{ChildWindows, FileDialogType, FileTarget},
-    dictionary::{Dictionary, LanguageType},
+    dictionary::Dictionary,
     languages::{Language, Languages, select_language},
     loader::Loader,
     localize::{arg, fl},
@@ -1244,9 +1244,7 @@ fn create_dictionary_thread(
                 if load_translations {
                     info!("loading existing traslations");
                     for lang in languages {
-                        if let Err(e) =
-                            dictionary.load_translation(lang, &loader, LanguageType::Internal)
-                        {
+                        if let Err(e) = dictionary.load_core_translation(lang, &loader) {
                             error!("unable to load translation {lang}: {e}");
                         } else {
                             info!("loaded translation for {lang}");

@@ -23,8 +23,6 @@ const POLISH: LanguageData = ["polish", "pol", FONT_BASE]; // need a font
 const RUSSIAN: LanguageData = ["russian", "rus", FONT_BASE]; // need a font
 const SPANISH: LanguageData = ["spanish", "spa", FONT_BASE];
 // !! when updating this, add to Language::language_data() and Language enum
-//
-// CZECH, DUTCH, ITALIAN, POLISH, RUSSIAN, SPANISH
 
 // "../assets/fonts/Noto_Serif/static/NotoSerif-Regular.ttf"
 const FONT_BASE_FILE: &str = "../assets/fonts/Noto_Sans/static/NotoSans-Regular.ttf"; // not used in const
