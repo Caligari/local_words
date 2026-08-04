@@ -1,12 +1,14 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
 use eframe::egui::{ComboBox, RichText, Ui};
-use log::{error, warn};
+use fluent_templates::LanguageIdentifier;
+use i18n_embed::LanguageLoader;
+use log::{debug, error, info, warn};
 
 use crate::{
     app::{AppStatus, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, INDENT_COLUMN_WIDTH},
     languages::{Language, Languages, select_language},
-    localize::fl,
+    localize::{FALLBACK_LANGUAGE, LANGUAGE_LOADER, LANGUAGES_LIST, fl},
 };
 
 const ZOOM: f32 = 1.0;
@@ -18,11 +20,15 @@ pub struct AppSettings {
     zoom: f32,
     internal_path: Option<String>,
     default_master_language: Language,
+    ui_language: LanguageIdentifier, // not yet used
 }
 
 #[allow(dead_code)]
 impl AppSettings {
     pub fn new(internal_path: &str, master_language: Language) -> Self {
+        let language_loader = &*LANGUAGE_LOADER;
+        let current_language = language_loader.current_language();
+        // let fallback_language = &*FALLBACK_LANGUAGE;
         AppSettings {
             theme: Theme::default(),
             zoom: ZOOM,
@@ -32,6 +38,7 @@ impl AppSettings {
                 None
             },
             default_master_language: master_language,
+            ui_language: current_language.clone(),
         }
     }
 
@@ -76,6 +83,40 @@ impl AppSettings {
                     ui.add_space(INDENT_COLUMN_WIDTH);
 
                     ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            // ui language
+                            let languages = &*LANGUAGES_LIST;
+
+                            let ui_lang_label =
+                                RichText::from(fl!("settings_ui_language")).strong();
+                            ui.label(ui_lang_label);
+
+                            let mut selected = languages
+                                .iter()
+                                .position(|li| li == &self.ui_language)
+                                .unwrap();
+                            let before = selected;
+
+                            ComboBox::from_id_salt("UiLang").show_index(
+                                ui,
+                                &mut selected,
+                                languages.len(),
+                                |l| languages[l].language.as_str(), // translate?
+                            );
+
+                            if selected != before {
+                                // Handle selection change
+                                if let Some(language) = languages.get(selected) {
+                                    self.ui_language = language.clone();
+                                    info!("changed ui language to {}", language.language.as_str())
+                                } else {
+                                    warn!("unable to set language {selected}");
+                                }
+                            }
+                        });
+
+                        ui.add_space(BETWEEN_FIELDS);
+
                         ui.horizontal(|ui| {
                             // theme
                             let theme_label = RichText::from(fl!("settings_theme")).strong();
@@ -144,6 +185,7 @@ struct SaveSettings1 {
     save_version: u16,
     theme: Theme,
     default_master_language: String,
+    ui_language: String,
 }
 
 impl SaveSettings1 {
@@ -161,11 +203,13 @@ impl From<SaveSettings1> for AppSettings {
                 error!("Unable to parse master language; using English instead!");
                 Language::English
             };
+        let ui_language = value.ui_language.parse().unwrap(); // !! better error handling than this -> fallback to default
         AppSettings {
             theme: value.theme.into(),
             zoom: ZOOM,
             internal_path: None,
             default_master_language,
+            ui_language,
         }
     }
 }
@@ -176,6 +220,7 @@ impl From<&AppSettings> for SaveSettings1 {
             save_version: SAVE1_VERSION,
             theme: value.theme.into(),
             default_master_language: value.default_master_language.name().to_string(),
+            ui_language: value.ui_language.language.to_string(),
         }
     }
 }

@@ -71,6 +71,7 @@ load_existing = Load an existing project
 
 settings_heading = Settings
 settings_description = Application defaults and other settings.
+settings_ui_language = UI Language:
 settings_theme = Theme:
 settings_master_language = Default Primary Language:
 settings_done = Done

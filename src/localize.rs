@@ -1,7 +1,8 @@
 use std::sync::LazyLock;
 
-use i18n_embed::DesktopLanguageRequester;
+use fluent_templates::LanguageIdentifier;
 use i18n_embed::fluent::{FluentLanguageLoader, fluent_language_loader};
+use i18n_embed::{DesktopLanguageRequester, LanguageLoader};
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
@@ -15,6 +16,17 @@ pub static LANGUAGE_LOADER: LazyLock<FluentLanguageLoader> = LazyLock::new(|| {
     i18n_embed::select(&loader, &Localizations, &languages).unwrap();
     loader.set_use_isolating(false);
     loader
+});
+
+pub static LANGUAGES_LIST: LazyLock<Vec<LanguageIdentifier>> = LazyLock::new(|| {
+    let loader = fluent_language_loader!();
+    loader.load_available_languages(&Localizations).unwrap();
+    loader.available_languages(&Localizations).unwrap()
+});
+
+pub static FALLBACK_LANGUAGE: LazyLock<LanguageIdentifier> = LazyLock::new(|| {
+    let loader = fluent_language_loader!();
+    loader.fallback_language().clone()
 });
 
 #[allow(unused_macros)]
