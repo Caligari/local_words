@@ -26,10 +26,10 @@ const SPANISH: LanguageData = ["spanish", "spa", FONT_BASE];
 
 // "../assets/fonts/Noto_Serif/static/NotoSerif-Regular.ttf"
 const FONT_BASE_FILE: &str = "../assets/fonts/Noto_Sans/static/NotoSans-Regular.ttf"; // not used in const
-const FONT_BASE: &str = "text";
+pub const FONT_BASE: &str = "text";
 // "../assets/fonts/Noto_Serif_SC/static/NotoSerifSC-Regular.ttf"
 const FONT_CHINESE_FILE: &str = "../assets/fonts/Noto_Sans_SC/static/NotoSansSC-Regular.ttf"; // not used in const
-const FONT_CHINESE: &str = "chinese";
+pub const FONT_CHINESE: &str = "chinese";
 // !! updating the font files requires updating Language::add_language_fonts
 
 pub struct Languages;

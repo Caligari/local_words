@@ -1,13 +1,46 @@
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use eframe::egui::{FontFamily, RichText};
 use fluent_templates::LanguageIdentifier;
 use i18n_embed::fluent::{FluentLanguageLoader, fluent_language_loader};
 use i18n_embed::{DesktopLanguageRequester, LanguageLoader};
 use rust_embed::RustEmbed;
 
+use crate::languages::FONT_BASE;
+
 #[derive(RustEmbed)]
 #[folder = "assets/text"]
 struct Localizations;
+
+#[derive(Debug, Clone, Copy)]
+pub struct LangInfo {
+    name: &'static str,
+    font: &'static str,
+}
+impl From<(&'static str, &'static str)> for LangInfo {
+    fn from(value: (&'static str, &'static str)) -> Self {
+        LangInfo {
+            name: value.0,
+            font: value.1,
+        }
+    }
+}
+pub static LANGUAGE_NAMES: LazyLock<HashMap<&str, LangInfo>> =
+    LazyLock::new(|| HashMap::from([("en", ("English", FONT_BASE).into())]));
+
+pub fn language_name(id: &str) -> RichText {
+    let names = &*LANGUAGE_NAMES;
+    let name = if let Some(name) = names.get(id) {
+        *name
+    } else {
+        LangInfo {
+            name: "unknown",
+            font: FONT_BASE,
+        }
+    };
+    RichText::new(name.name).family(FontFamily::Name(name.font.into()))
+}
 
 pub static mut CURRENT_LANGUAGES: LazyLock<LanguagesList> = LazyLock::new(|| LanguagesList::new());
 

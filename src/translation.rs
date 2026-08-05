@@ -36,7 +36,16 @@ impl LineData {
     }
 
     pub fn replace_modified(&mut self, opt_line: Option<String>) {
-        self.modification = opt_line
+        // no modification if it matches the main line
+        self.modification = if let Some(new_line) = opt_line {
+            if new_line == self.main_line {
+                None
+            } else {
+                Some(new_line)
+            }
+        } else {
+            opt_line
+        };
     }
 
     pub fn base_line(&self) -> &str {

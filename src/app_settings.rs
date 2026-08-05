@@ -7,7 +7,7 @@ use log::{error, info, warn};
 use crate::{
     app::{AppStatus, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, INDENT_COLUMN_WIDTH},
     languages::{Language, Languages, select_language},
-    localize::{CURRENT_LANGUAGES, LANGUAGE_LOADER, LANGUAGES_LIST, fl},
+    localize::{CURRENT_LANGUAGES, LANGUAGE_LOADER, LANGUAGES_LIST, fl, language_name},
 };
 
 const ZOOM: f32 = 1.0;
@@ -101,7 +101,7 @@ impl AppSettings {
                                 ui,
                                 &mut selected,
                                 languages.len(),
-                                |l| languages[l].language.as_str(), // translate?
+                                |l| language_name(languages[l].language.as_str()), // translate?
                             );
 
                             if selected != before {
