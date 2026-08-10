@@ -42,11 +42,11 @@ pub fn language_name(id: &str) -> RichText {
     RichText::new(name.name).family(FontFamily::Name(name.font.into()))
 }
 
-pub static mut CURRENT_LANGUAGES: LazyLock<LanguagesList> = LazyLock::new(|| LanguagesList::new());
+pub static mut CURRENT_LANGUAGES: LazyLock<LanguagesList> = LazyLock::new(LanguagesList::new);
 
 #[allow(dead_code)]
 pub static mut LANGUAGE_LOADER: LazyLock<MyLanguageLoader> =
-    LazyLock::new(|| MyLanguageLoader::new());
+    LazyLock::new(MyLanguageLoader::new);
 
 pub static LANGUAGES_LIST: LazyLock<Vec<LanguageIdentifier>> = LazyLock::new(|| {
     let loader = fluent_language_loader!();

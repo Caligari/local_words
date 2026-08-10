@@ -166,7 +166,7 @@ impl Translation {
         }
 
         let extra_count = extra_lines.len();
-        self.extra_lines.extend(extra_lines.into_iter());
+        self.extra_lines.extend(extra_lines);
         // what to do with missing list? ignore it?
         info!(
             "update language {language}: {replace} {} lines ({} tags missing, {} extras), with {} words",
@@ -420,12 +420,12 @@ impl Translation {
                 "show_translation_info_trans_lines",
                 arg!("trans", lang, "lines", lines)
             ),
-            if extra.len() > 0 {
+            if !extra.is_empty() {
                 format!(", {}", fl!("show_extra_lines", arg!("lines", extra)))
             } else {
                 extra
             },
-            if missing.len() > 0 {
+            if !missing.is_empty() {
                 format!(", {}", fl!("show_missing_lines", arg!("lines", missing)))
             } else {
                 missing

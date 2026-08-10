@@ -182,7 +182,7 @@ impl ChildWindows {
                 });
 
                 if ctx.input(|i| i.viewport().close_requested()) {
-                    debug!("{} requested close", &title);
+                    debug!("{} requested close", title);
                     let mut show_me = show_about.write();
                     *show_me = false;
                 }

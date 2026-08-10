@@ -472,7 +472,7 @@ impl App {
                                 if selected != before {
                                     // Handle selection change
                                     if let Some(new_language) = Languages::from_index(selected) {
-                                        (*create_data).primary_language = new_language;
+                                        create_data.primary_language = new_language;
                                         info!("selected primary language: {new_language}");
                                         // go to next stage
                                     } else {
@@ -491,7 +491,7 @@ impl App {
                             ui.checkbox(&mut load_trans, load_translations_label);
 
                             if load_trans != pre_load {
-                                (*create_data).load_translations = load_trans;
+                                create_data.load_translations = load_trans;
                                 info!("load translations set to: {}", load_trans);
                             }
 

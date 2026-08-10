@@ -19,9 +19,9 @@ array-bytes = "9.3"
 directories-next = "2.0"
 calamine = "0.36"
 
-eframe = "0.35"
-egui_extras = "0.35"
-egui-file-dialog = "0.14"
+eframe = "0.36"
+egui_extras = "0.36"
+egui-file-dialog = "0.15"
 fluent-templates = "0.15"
 i18n-embed-fl = "0.10"
 i18n-embed = { version = "0.16", features = [ "fluent-system", "desktop-requester",] }

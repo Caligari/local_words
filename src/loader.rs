@@ -76,23 +76,23 @@ pub struct Loaded {
 }
 
 impl Loaded {
-    fn load_primary_language(format: LoadFormat, buffer: &Vec<u8>) -> Result<Loaded> {
+    fn load_primary_language(format: LoadFormat, buffer: &[u8]) -> Result<Loaded> {
         let lines = format.load(buffer)?;
         let mut loaded = Loaded::default();
         for (tag, line) in lines {
-            loaded.add_line(&tag.trim(), &line, None, true);
+            loaded.add_line(tag.trim(), &line, None, true);
         }
         Ok(loaded)
     }
 
-    fn load_with_tags(tags: &TagList, format: LoadFormat, buffer: &Vec<u8>) -> Result<Loaded> {
+    fn load_with_tags(tags: &TagList, format: LoadFormat, buffer: &[u8]) -> Result<Loaded> {
         let lines = format.load(buffer)?;
         let mut loaded = Loaded::default();
         for (tag, line) in lines {
             if tags.contains(&tag) {
-                loaded.add_line(&tag.trim(), &line, None, true);
+                loaded.add_line(tag.trim(), &line, None, true);
             } else {
-                loaded.add_unknown(&tag.trim(), &line, None);
+                loaded.add_unknown(tag.trim(), &line, None);
             }
         }
         Ok(loaded)
@@ -279,7 +279,7 @@ enum LoadFormat {
 }
 
 impl LoadFormat {
-    pub fn load(&self, buffer: &Vec<u8>) -> Result<Vec<(String, String)>> {
+    pub fn load(&self, buffer: &[u8]) -> Result<Vec<(String, String)>> {
         use LoadFormat::*;
         match self {
             Vrt => {
@@ -295,7 +295,7 @@ impl LoadFormat {
         }
     }
 
-    fn read_vrt(&self, buffer: &Vec<u8>) -> Result<Vec<(String, String)>> {
+    fn read_vrt(&self, buffer: &[u8]) -> Result<Vec<(String, String)>> {
         let mut ret = Vec::new();
         for line in buffer.lines() {
             let line = line?;
@@ -305,7 +305,7 @@ impl LoadFormat {
             let tag = line[0..equal].trim();
             let val = repair_vrt_line_end(line[equal..].trim(), &line);
 
-            let std::result::Result::Ok(val) = json::parse(&val.extract_data()) else {
+            let std::result::Result::Ok(val) = json::parse(val.extract_data()) else {
                 error!("can't find string in: {line}");
                 continue;
             }; // no string
@@ -543,7 +543,7 @@ impl LoaderOld {
         info!("Reading: {}...", self.file.to_string_lossy());
         let lines = read_vrt(vrt_file)?;
         for (tag, line) in lines {
-            self.add_line(&tag.trim(), &line, None, true);
+            self.add_line(tag.trim(), &line, None, true);
         }
         Ok(())
     }
@@ -597,7 +597,7 @@ fn read_vrt<F: Read>(file: F) -> Result<Vec<(String, String)>> {
         let tag = line[0..equal].trim();
         let val = repair_vrt_line_end(line[equal..].trim(), &line);
 
-        let std::result::Result::Ok(val) = json::parse(&val.extract_data()) else {
+        let std::result::Result::Ok(val) = json::parse(val.extract_data()) else {
             error!("can't find string in: {line}");
             continue;
         }; // no string
@@ -664,12 +664,11 @@ fn repair_vrt_line_end(line_entry: &str, full_line: &str) -> ParseResult {
         // !! check for thrid last char is not \
         // should those be u8 checks?
         // !! should this recurrsively check again and again?
-        if line_entry.ends_with("\"\"") {
-            if !line_entry.ends_with("\\\"\"") {
+        if line_entry.ends_with("\"\"")
+            && !line_entry.ends_with("\\\"\"") {
                 warn!("line ends with an extra quote: {full_line}");
                 return ParseResult::ExtraQuote(line_entry[..l + 1].to_string());
             }
-        }
 
         // !! we can safely ignore ; and , as final characters
         if l < line_entry.len() - 2 {
@@ -677,11 +676,11 @@ fn repair_vrt_line_end(line_entry: &str, full_line: &str) -> ParseResult {
             return ParseResult::Excess(line_entry[..l + 2].to_string());
         }
 
-        return ParseResult::Ok(line_entry.to_string());
+        ParseResult::Ok(line_entry.to_string())
     } else {
         // !! if there is no final ", that's a problem we should fix?
         warn!("line with missing final quote: {full_line}");
-        return ParseResult::NoQuote(format!("{}\"", line_entry));
+        ParseResult::NoQuote(format!("{}\"", line_entry))
     }
 }
 

@@ -97,7 +97,6 @@ pub fn create_vrt_zip(
 }
 
 /// Write strings for a language out to a vrt file
-
 pub fn write_lang_vrt(filename: &Path, tags: &TagList, lang_strings: &Vec<String>) -> Result<()> {
     assert_eq!(tags.len(), lang_strings.len());
     assert_eq!(filename.extension(), Some(OsStr::new("vrt")));
@@ -112,7 +111,6 @@ pub fn write_lang_vrt(filename: &Path, tags: &TagList, lang_strings: &Vec<String
 }
 
 /// Write strings and context for a language out to a csv file
-
 pub fn write_lang_csv(
     filename: &Path,
     tags: &TagList,
@@ -128,8 +126,8 @@ pub fn write_lang_csv(
         .from_path(filename)?;
 
     for ((tag, item), context) in tags.iter().zip(lang_strings).zip(context) {
-        let item = format!("{item}");
-        csv_writer.write_record(&[tag, &item, context])?;
+        let item = item.to_string();
+        csv_writer.write_record([tag, &item, context])?;
     }
     Ok(())
 }

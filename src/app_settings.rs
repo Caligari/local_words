@@ -32,7 +32,7 @@ impl AppSettings {
         AppSettings {
             theme: Theme::default(),
             zoom: ZOOM,
-            internal_path: if internal_path.len() > 0 {
+            internal_path: if !internal_path.is_empty() {
                 Some(internal_path.to_string())
             } else {
                 None
@@ -210,7 +210,7 @@ impl From<SaveSettings1> for AppSettings {
             };
         let ui_language = value.ui_language.parse().unwrap(); // !! better error handling than this -> fallback to default
         AppSettings {
-            theme: value.theme.into(),
+            theme: value.theme,
             zoom: ZOOM,
             internal_path: None,
             default_master_language,
@@ -223,7 +223,7 @@ impl From<&AppSettings> for SaveSettings1 {
     fn from(value: &AppSettings) -> Self {
         SaveSettings1 {
             save_version: SAVE1_VERSION,
-            theme: value.theme.into(),
+            theme: value.theme,
             default_master_language: value.default_master_language.name().to_string(),
             ui_language: value.ui_language.language.to_string(),
         }

@@ -97,6 +97,7 @@ show_translation = { translation }:
 show_export = Export
 show_tag = Tag
 show_missing_num = ({$num} missing lines)
+show_context = Context
 
 initial_version = Initial version
 version_core = Core version

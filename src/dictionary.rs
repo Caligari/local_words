@@ -192,12 +192,11 @@ impl Dictionary {
             ui.separator();
             ui.add_space(SMALL_SPACE);
 
-            if let Some(new_state) = new_show_state {
-                if new_state != self.show.state {
+            if let Some(new_state) = new_show_state
+                && new_state != self.show.state {
                     info!("{} -> {}", self.show.state, new_state);
                     self.show.state = new_state;
                 }
-            }
 
             ui.horizontal(|ui| {
                 ui.add_space(EDGE_COLUMN_WIDTH);
@@ -312,7 +311,8 @@ impl Dictionary {
             ui.separator();
             ui.add_space(BETWEEN_FIELDS);
 
-            ui.label(format!("Context"));
+            let context_text = RichText::new(fl!("show_context"));
+            ui.label(context_text);
             // primary language
             // translation
             // context
@@ -505,7 +505,7 @@ impl Dictionary {
         ) {
             error!(
                 "unable to export {} for master language {}: {e}",
-                format!("{}", master_language.language()),
+                master_language.language(),
                 master_language.language()
             );
         }
@@ -519,11 +519,10 @@ impl Dictionary {
     pub fn external_translations_empty(&self) -> bool {
         let langs = self.words.translation_languages();
         for lang in langs {
-            if let Some((_trans, t)) = self.words.translation_language(lang) {
-                if t >= LanguageType::External {
+            if let Some((_trans, t)) = self.words.translation_language(lang)
+                && t >= LanguageType::External {
                     return false;
                 }
-            }
         }
 
         true
@@ -607,7 +606,7 @@ impl Display for LanguageType {
     }
 }
 
-/// The categories of dictionary lines: Main, Achivements, and Presence.
+// The categories of dictionary lines: Main, Achivements, and Presence.
 // #[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Sequence, Clone, Copy)]
 // pub enum Category {
 //     Main,
@@ -713,11 +712,10 @@ impl Words {
     }
 
     fn missing_lines(&self, language: Option<Language>) -> Vec<usize> {
-        if let Some(language) = language {
-            if let Some((translation, _l_type)) = self.translation_language(language) {
+        if let Some(language) = language
+            && let Some((translation, _l_type)) = self.translation_language(language) {
                 return translation.missing_lines().clone();
             }
-        }
         Vec::new()
     }
 
@@ -800,13 +798,12 @@ impl ShowState {
             languages[l].1.as_str()
         });
         let new_index = languages[selected].0;
-        if let Some(new_lang) = Languages::from_index(new_index) {
-            if new_lang != self.selected_translation {
+        if let Some(new_lang) = Languages::from_index(new_index)
+            && new_lang != self.selected_translation {
                 info!("selected new language: {new_lang}");
                 self.selected_translation = new_lang;
                 return true;
             }
-        }
         false
     }
 }
@@ -948,7 +945,7 @@ struct ContentVersions {
 impl ContentVersions {
     pub fn current_version(&self, version: ContentType) -> &DictionaryVersion {
         if let Some(ver) = self.current.get(&version) {
-            return ver;
+            ver
         } else {
             error!("no version found for {version}");
             panic!("no version found for {version}");
