@@ -1,5 +1,6 @@
 use std::{
     fmt::Display,
+    fs::read_to_string,
     path::{Path, PathBuf},
     sync::LazyLock,
 };
@@ -8,6 +9,7 @@ use anyhow::{Result, anyhow};
 use eframe::egui::{ComboBox, RichText, Ui};
 use fluent_templates::LanguageIdentifier;
 use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     APP_FILE_NAME,
@@ -16,7 +18,7 @@ use crate::{
     localize::{CURRENT_LANGUAGES, LANGUAGE_LOADER, LANGUAGES_LIST, fl, language_name},
 };
 
-const SETTINGS_EXT: &str = "set"; // do better than this
+const SETTINGS_EXT: &str = "toml"; // do better than this
 pub const DEFAULT_ZOOM: f32 = 1.0;
 
 const APP_SETTINGS_FILENAME: LazyLock<PathBuf> =
@@ -34,6 +36,7 @@ pub struct AppSettings {
     zoom: f32,
     default_master_language: Language,
     ui_language: LanguageIdentifier, // not yet used
+                                     // autoload: Option<String>,  // name of data file to load
 }
 
 #[allow(dead_code)]
@@ -51,10 +54,8 @@ impl AppSettings {
         }
     }
 
-    pub fn load(_settings_path: &Path) -> Result<Self> {
-        // !! we need to load from settings file
-        //
-        Err(anyhow!("no load process defined"))
+    pub fn load(settings_path: &Path) -> Result<Self> {
+        settings_load(settings_path)
     }
 
     pub fn theme(&self) -> eframe::egui::Theme {
@@ -188,11 +189,46 @@ impl AppSettings {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct SettingsVersion {
+    save_version: u16,
+}
+
+/// Load settings from any version of save data
+fn settings_load(file_name: &Path) -> Result<AppSettings> {
+    let data = read_to_string(file_name)?;
+
+    let Ok(SettingsVersion { save_version }) = toml::from_str(&data) else {
+        error!("unable to parse version");
+        return Err(anyhow!("unable to parse save settings version"));
+    };
+
+    match save_version {
+        SAVE1_VERSION => {
+            info!("loading settings version {}", SAVE1_VERSION);
+            let Ok(settings) = toml::from_str::<SaveSettings1>(&data) else {
+                error!("unable to parse save settings 1");
+                return Err(anyhow!("unable to parse save as settings version 1"));
+            };
+            if !settings.validate() {
+                error!("settings does not validate");
+                return Err(anyhow!("settings does not validate"));
+            }
+            Ok(settings.into())
+        }
+
+        _ => {
+            error!("unknown version {save_version} for settings");
+            Err(anyhow!("unknown version {save_version} for settings"))
+        }
+    }
+}
+
 // ====================
 // SaveSettings1
 const SAVE1_VERSION: u16 = 1;
 
-#[derive(Debug)] // Serialize, Deserialize
+#[derive(Debug, Serialize, Deserialize)] // Serialize, Deserialize
 struct SaveSettings1 {
     save_version: u16,
     theme: Theme,
@@ -239,7 +275,7 @@ impl From<&AppSettings> for SaveSettings1 {
 // -----------------------------
 // eGUI Theme Save
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)] // Deserialize, Serialize,
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)] // Deserialize, Serialize,
 enum Theme {
     Dark,
     #[default]
