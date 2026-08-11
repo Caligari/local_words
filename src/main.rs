@@ -18,6 +18,7 @@ mod localize;
 const APP_NAME: &str = "Local Words";
 const COMPANY_DOMAIN: &str = "com.au";
 const COMPANY_NAME: &str = "VectorStorm";
+pub const APP_FILE_NAME: &str = "local_words";
 
 const EXTERNAL_DIR: &str = "../test_loc_data/2026_03_20";
 const INTERNAL_DIR: &str = "./";

@@ -1,15 +1,21 @@
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    path::{Path, PathBuf},
+    sync::LazyLock,
+};
 
 use eframe::egui::{ComboBox, RichText, Ui};
 use fluent_templates::LanguageIdentifier;
 use log::{error, info, warn};
 
 use crate::{
+    APP_FILE_NAME,
     app::{AppStatus, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, INDENT_COLUMN_WIDTH},
     languages::{Language, Languages, select_language},
     localize::{CURRENT_LANGUAGES, LANGUAGE_LOADER, LANGUAGES_LIST, fl, language_name},
 };
 
+const SETTINGS_EXT: &str = "set"; // do better than this
 const ZOOM: f32 = 1.0;
 
 /// Settings needed to start the app
@@ -180,6 +186,14 @@ impl AppSettings {
         ret
     }
 }
+
+pub fn app_settings_file_name(config_path: &Path) -> PathBuf {
+    let filename = &*APP_SETTINGS_FILENAME;
+    config_path.join(filename)
+}
+
+const APP_SETTINGS_FILENAME: LazyLock<PathBuf> =
+    LazyLock::new(|| Path::new(APP_FILE_NAME).with_extension(SETTINGS_EXT));
 
 // ====================
 // SaveSettings1

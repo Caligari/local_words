@@ -143,16 +143,8 @@ impl App {
     ) -> Result<Self> {
         configure_fonts(cc, settings.zoom());
 
+        // should try to load settings (in a thread)
         let data = None;
-        //     {
-        //     match Dictionary::new(&settings.internal_path(), settings.master_language()) {
-        //         Ok(dictionary) => Some(dictionary),
-        //         Err(e) => {
-        //             warn!("No dictionary in new App: {e}");
-        //             None
-        //         }
-        //     }
-        // };
         Ok(App {
             settings,
             directories,
