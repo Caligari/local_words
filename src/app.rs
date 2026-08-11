@@ -2,14 +2,13 @@ use std::{
     cell::{RefCell, RefMut},
     collections::BTreeMap,
     fmt::Display,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     thread,
 };
 
 use anyhow::Result;
 use crossbeam_channel::{Receiver, bounded};
-use directories_next::ProjectDirs;
 use eframe::{
     CreationContext, Frame,
     egui::{
@@ -21,14 +20,13 @@ use eframe::{
 use log::{debug, error, info, warn};
 
 use crate::{
-    app_settings::AppSettings,
+    MASTER_LANGUAGE, PROJECT_DIRECTORY,
+    app_settings::{AppSettings, DEFAULT_ZOOM, app_settings_file_path},
     child_windows::{ChildWindows, FileDialogType, FileTarget},
     dictionary::Dictionary,
     languages::{Language, Languages, select_language},
     loader::Loader,
     localize::{arg, fl},
-    // translation::Translation,
-    // writer::{CategoryTags, FormatVersion, create_externals_zip, create_vrt_zip},
 };
 
 pub const UI_PADDING: f32 = 8.0;
@@ -53,9 +51,8 @@ pub const CHANGE_NOTES: &[&str] = &["0.1.0 - initial version"];
 
 #[allow(dead_code)]
 pub struct App {
-    settings: AppSettings,
+    settings: Option<AppSettings>,
     status: AppStatus,
-    directories: ProjectDirs,
     data: Option<Dictionary>, // cow? box?
     message: Option<String>,
     child_windows: ChildWindows,
@@ -69,7 +66,9 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut Ui, frame: &mut Frame) {
         use AppStatus::*;
 
-        ui.set_visuals(self.settings.theme().default_visuals());
+        if let Some(settings) = &self.settings {
+            ui.set_visuals(settings.theme().default_visuals());
+        }
 
         self.show_top(ui, frame);
         self.show_footer(ui);
@@ -81,13 +80,61 @@ impl eframe::App for App {
                     (AppStatus::Starting, _) => {
                         // what do we need to do?
                         self.data = None;
-                        info!("Starting => Ready");
-                        Some(AppStatus::Ready)
+                        if self.settings.is_none() {
+                            // we need to load settings
+                            let base_dir = &*PROJECT_DIRECTORY;
+                            let recv = load_settings_thread(base_dir.config_dir());
+                            ui.request_repaint();
+                            info!("Starting => LoadSettings");
+                            Some(AppStatus::LoadSettings(recv))
+                        } else {
+                            ui.request_repaint();
+                            info!("Starting => Ready");
+                            Some(AppStatus::Ready)
+                        }
                         // this returns Option<AppStatus>
                     }
 
+                    (AppStatus::LoadSettings(load_result), _) => {
+                        ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
+                            ui.add_space(80.);
+                            ui.add(Spinner::default().size(50.));
+                        });
+                        ui.request_repaint();
+
+                        if let Ok(response) = load_result.try_recv() {
+                            debug!("got load settings response");
+                            match response {
+                                Ok(settings) => {
+                                    info!("Settings loaded");
+                                    self.settings = Some(settings);
+                                    info!("LoadSettings => Ready");
+                                    Some(AppStatus::Ready)
+                                }
+
+                                Err(e) => {
+                                    warn!("unable to load settings: {e}");
+                                    info!("creating default settings");
+                                    self.settings = Some(AppSettings::new(MASTER_LANGUAGE));
+                                    info!("LoadSettings => Settings");
+                                    Some(AppStatus::Settings)
+                                }
+                            }
+                        } else {
+                            None // Keep waiting
+                        }
+                    }
+
                     // this returns Option<AppStatus>
-                    (AppStatus::Settings, _) => self.settings.show_and_edit(ui),
+                    (AppStatus::Settings, _) => {
+                        if let Some(settings) = self.settings.as_mut() {
+                            settings.show_and_edit(ui)
+                        } else {
+                            self.message = Some(fl!("no_app_settings"));
+                            error!("unable to edit settings, as they do not exist!");
+                            Some(AppStatus::Ready)
+                        }
+                    }
 
                     // we have no data, we must create or load some
                     // this returns Option<AppStatus>
@@ -136,18 +183,12 @@ impl eframe::App for App {
 // ---------------------
 
 impl App {
-    pub fn new(
-        settings: AppSettings,
-        directories: ProjectDirs,
-        cc: &CreationContext<'_>,
-    ) -> Result<Self> {
-        configure_fonts(cc, settings.zoom());
+    pub fn new(cc: &CreationContext<'_>) -> Result<Self> {
+        configure_fonts(cc, DEFAULT_ZOOM); // !! do not have zoom right now
 
-        // should try to load settings (in a thread)
         let data = None;
         Ok(App {
-            settings,
-            directories,
+            settings: None,
             status: AppStatus::default(),
             data,
             message: None,
@@ -340,19 +381,21 @@ impl App {
 
                         ui.indent("buttons", |ui| {
                             ui.horizontal(|ui| {
-                                let create_text = RichText::from(fl!("make_new"));
-                                if ui.button(create_text).clicked() {
-                                    // select master language
-                                    // select zip or directories
-                                    // create directory
+                                if let Some(settings) = &self.settings {
+                                    let create_text = RichText::from(fl!("make_new"));
+                                    if ui.button(create_text).clicked() {
+                                        // select master language
+                                        // select zip or directories
+                                        // create directory
 
-                                    let create_data = CreateData {
-                                        primary_language: self.settings.master_language(),
-                                        load_translations: true, // load this from somewhere?
-                                    };
-                                    ret = Some(AppStatus::CreateNew(RefCell::new(
-                                        CreateStage::Setup(create_data),
-                                    )));
+                                        let create_data = CreateData {
+                                            primary_language: settings.master_language(),
+                                            load_translations: true, // load this from somewhere?
+                                        };
+                                        ret = Some(AppStatus::CreateNew(RefCell::new(
+                                            CreateStage::Setup(create_data),
+                                        )));
+                                    }
                                 }
 
                                 ui.add_space(10.0);
@@ -1214,6 +1257,43 @@ impl App {
     // }
 }
 
+fn load_settings_thread(config_path: &Path) -> Receiver<Result<AppSettings>> {
+    let settings_path = app_settings_file_path(config_path).clone();
+    info!(
+        "trying to load app settings settings from [{}]",
+        settings_path.to_string_lossy()
+    );
+
+    let (send, recv) = bounded(1);
+    let respond = recv.to_owned();
+    let _loader = thread::spawn(move || {
+        match AppSettings::load(&settings_path) {
+            Ok(settings) => match send.send(Ok(settings)) {
+                Err(e) => {
+                    error!("unable to send load settings result: {e}");
+                }
+
+                _ => (),
+            },
+
+            Err(e) => {
+                error!("unable to load settings: {e}");
+                match send.send(Err(e)) {
+                    Err(e) => {
+                        error!("unable to send load settings result: {e}");
+                    }
+
+                    _ => (),
+                }
+            }
+        }
+
+        drop(send);
+    });
+
+    respond
+}
+
 /// spawns a thread to create the dictionary and load the relevant translations
 fn create_dictionary_thread(
     create_data: &CreateData,
@@ -1304,6 +1384,8 @@ pub const MOD_TRANS_COLOR: Color32 = Color32::DARK_RED;
 pub enum AppStatus {
     #[default]
     Starting,
+    LoadSettings(Receiver<Result<AppSettings>>),
+    SaveSettings, // do we need this, or do we do this in the background regardless?
     Settings,
     Ready, // (RefCell<Option<usize>>),
     CreateNew(RefCell<CreateStage>),
@@ -1330,6 +1412,8 @@ impl Display for AppStatus {
             "{}",
             match self {
                 Starting => fl!("app_starting"),
+                LoadSettings(..) => fl!("app_load_settings"),
+                SaveSettings => fl!("app_save_settings"),
                 Settings => fl!("app_settings"),
                 Ready => fl!("app_ready"),
                 CreateNew(..) => fl!("app_create_new"),

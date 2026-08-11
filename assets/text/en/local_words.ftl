@@ -21,6 +21,8 @@ about_fonts = Using the Noto set of fonts,
  (https://openfontlicense.org)
 
 app_starting = Starting
+app_load_settings = Loading Settings
+app_save_settings = Saving Settings
 app_settings = Modifying Settings
 app_ready = Ready
 app_create_new = Creating New Project
@@ -75,6 +77,7 @@ settings_ui_language = UI Language:
 settings_theme = Theme:
 settings_master_language = Default Primary Language:
 settings_done = Done
+no_app_settings = Internal Error! No App settings present!
 
 create_heading = Create New Project
 create_description = Define the primary language, and load the base string table.

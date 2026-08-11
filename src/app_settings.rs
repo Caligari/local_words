@@ -4,6 +4,7 @@ use std::{
     sync::LazyLock,
 };
 
+use anyhow::{Result, anyhow};
 use eframe::egui::{ComboBox, RichText, Ui};
 use fluent_templates::LanguageIdentifier;
 use log::{error, info, warn};
@@ -16,48 +17,48 @@ use crate::{
 };
 
 const SETTINGS_EXT: &str = "set"; // do better than this
-const ZOOM: f32 = 1.0;
+pub const DEFAULT_ZOOM: f32 = 1.0;
+
+const APP_SETTINGS_FILENAME: LazyLock<PathBuf> =
+    LazyLock::new(|| Path::new(&*APP_FILE_NAME).with_extension(SETTINGS_EXT));
+
+pub fn app_settings_file_path(config_path: &Path) -> PathBuf {
+    let filename = &*APP_SETTINGS_FILENAME;
+    config_path.join(filename)
+}
 
 /// Settings needed to start the app
 #[derive(Debug, Clone)]
 pub struct AppSettings {
     theme: Theme,
     zoom: f32,
-    internal_path: Option<String>,
     default_master_language: Language,
     ui_language: LanguageIdentifier, // not yet used
 }
 
 #[allow(dead_code)]
 impl AppSettings {
-    pub fn new(internal_path: &str, master_language: Language) -> Self {
+    pub fn new(master_language: Language) -> Self {
         let current_language = unsafe {
             let language_loader = &*LANGUAGE_LOADER;
             language_loader.current_language()
         };
         AppSettings {
             theme: Theme::default(),
-            zoom: ZOOM,
-            internal_path: if !internal_path.is_empty() {
-                Some(internal_path.to_string())
-            } else {
-                None
-            },
+            zoom: DEFAULT_ZOOM,
             default_master_language: master_language,
             ui_language: current_language.clone(),
         }
     }
 
-    pub fn theme(&self) -> eframe::egui::Theme {
-        self.theme.into()
+    pub fn load(_settings_path: &Path) -> Result<Self> {
+        // !! we need to load from settings file
+        //
+        Err(anyhow!("no load process defined"))
     }
 
-    pub fn internal_path(&self) -> String {
-        if let Some(internal) = &self.internal_path {
-            internal.clone()
-        } else {
-            String::new()
-        }
+    pub fn theme(&self) -> eframe::egui::Theme {
+        self.theme.into()
     }
 
     pub fn master_language(&self) -> Language {
@@ -187,14 +188,6 @@ impl AppSettings {
     }
 }
 
-pub fn app_settings_file_name(config_path: &Path) -> PathBuf {
-    let filename = &*APP_SETTINGS_FILENAME;
-    config_path.join(filename)
-}
-
-const APP_SETTINGS_FILENAME: LazyLock<PathBuf> =
-    LazyLock::new(|| Path::new(APP_FILE_NAME).with_extension(SETTINGS_EXT));
-
 // ====================
 // SaveSettings1
 const SAVE1_VERSION: u16 = 1;
@@ -225,8 +218,7 @@ impl From<SaveSettings1> for AppSettings {
         let ui_language = value.ui_language.parse().unwrap(); // !! better error handling than this -> fallback to default
         AppSettings {
             theme: value.theme,
-            zoom: ZOOM,
-            internal_path: None,
+            zoom: DEFAULT_ZOOM,
             default_master_language,
             ui_language,
         }
