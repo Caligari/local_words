@@ -194,6 +194,16 @@ struct SettingsVersion {
     save_version: u16,
 }
 
+// !! This is where to set the new save settings to use
+type SaveSettings = SaveSettings1;
+
+/// Save settings in current save version
+fn settings_save(settings: &AppSettings, file_name: &Path) -> Result<()> {
+    let save_settings: SaveSettings = settings.into();
+
+    Ok(())
+}
+
 /// Load settings from any version of save data
 fn settings_load(file_name: &Path) -> Result<AppSettings> {
     let data = read_to_string(file_name)?;
