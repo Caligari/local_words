@@ -2,7 +2,7 @@ use std::{
     cell::{RefCell, RefMut},
     collections::BTreeMap,
     fmt::Display,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
     thread,
 };
@@ -20,8 +20,8 @@ use eframe::{
 use log::{debug, error, info, warn};
 
 use crate::{
-    MASTER_LANGUAGE, PROJECT_DIRECTORY,
-    app_settings::{AppSettings, DEFAULT_ZOOM, app_settings_file_path},
+    MASTER_LANGUAGE,
+    app_settings::{AppSettings, DEFAULT_ZOOM},
     child_windows::{ChildWindows, FileDialogType, FileTarget},
     dictionary::Dictionary,
     languages::{Language, Languages, select_language},
@@ -82,8 +82,7 @@ impl eframe::App for App {
                         self.data = None;
                         if self.settings.is_none() {
                             // we need to load settings
-                            let base_dir = &*PROJECT_DIRECTORY;
-                            let recv = load_settings_thread(base_dir.config_dir());
+                            let recv = load_settings_thread();
                             ui.request_repaint();
                             info!("Starting => LoadSettings");
                             Some(AppStatus::LoadSettings(recv))
@@ -1257,17 +1256,13 @@ impl App {
     // }
 }
 
-fn load_settings_thread(config_path: &Path) -> Receiver<Result<AppSettings>> {
-    let settings_path = app_settings_file_path(config_path).clone();
-    info!(
-        "trying to load app settings settings from [{}]",
-        settings_path.to_string_lossy()
-    );
+fn load_settings_thread() -> Receiver<Result<AppSettings>> {
+    info!("trying to load app settings",);
 
     let (send, recv) = bounded(1);
     let respond = recv.to_owned();
     let _loader = thread::spawn(move || {
-        match AppSettings::load(&settings_path) {
+        match AppSettings::load() {
             Ok(settings) => match send.send(Ok(settings)) {
                 Err(e) => {
                     error!("unable to send load settings result: {e}");

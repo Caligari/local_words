@@ -1,6 +1,7 @@
 use std::{
     fmt::Display,
-    fs::read_to_string,
+    fs::{self, File, read_to_string},
+    io::Write,
     path::{Path, PathBuf},
     sync::LazyLock,
 };
@@ -12,7 +13,7 @@ use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    APP_FILE_NAME,
+    APP_FILE_NAME, PROJECT_DIRECTORY,
     app::{AppStatus, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, INDENT_COLUMN_WIDTH},
     languages::{Language, Languages, select_language},
     localize::{CURRENT_LANGUAGES, LANGUAGE_LOADER, LANGUAGES_LIST, fl, language_name},
@@ -24,7 +25,9 @@ pub const DEFAULT_ZOOM: f32 = 1.0;
 const APP_SETTINGS_FILENAME: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(&*APP_FILE_NAME).with_extension(SETTINGS_EXT));
 
-pub fn app_settings_file_path(config_path: &Path) -> PathBuf {
+pub fn app_settings_file_path() -> PathBuf {
+    let base_dir = &*PROJECT_DIRECTORY;
+    let config_path = base_dir.config_dir();
     let filename = &*APP_SETTINGS_FILENAME;
     config_path.join(filename)
 }
@@ -54,8 +57,22 @@ impl AppSettings {
         }
     }
 
-    pub fn load(settings_path: &Path) -> Result<Self> {
-        settings_load(settings_path)
+    pub fn load() -> Result<Self> {
+        let settings_path = app_settings_file_path();
+        info!(
+            "loading app settings settings from [{}]",
+            settings_path.to_string_lossy()
+        );
+        settings_load(&settings_path)
+    }
+
+    pub fn save(&self) -> Result<()> {
+        let settings_path = app_settings_file_path();
+        info!(
+            "saving app settings settings to [{}]",
+            settings_path.to_string_lossy()
+        );
+        settings_save(&self, &settings_path)
     }
 
     pub fn theme(&self) -> eframe::egui::Theme {
@@ -197,9 +214,25 @@ struct SettingsVersion {
 // !! This is where to set the new save settings to use
 type SaveSettings = SaveSettings1;
 
+const TEMPFILE_NAME: &str = "settings.tmp";
+const TEMPFILE_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
+    let proj = &*PROJECT_DIRECTORY;
+    let temp_dir = proj.data_local_dir();
+    temp_dir.join(TEMPFILE_NAME)
+});
+
 /// Save settings in current save version
 fn settings_save(settings: &AppSettings, file_name: &Path) -> Result<()> {
     let save_settings: SaveSettings = settings.into();
+
+    let save_data = toml::to_string(&save_settings)?;
+
+    // this should be a fairly short file
+    let tempfile_path = &*TEMPFILE_PATH;
+    let mut settings_file = File::create(tempfile_path)?;
+    settings_file.write_all(save_data.as_bytes())?;
+
+    fs::copy(tempfile_path, file_name)?;
 
     Ok(())
 }
