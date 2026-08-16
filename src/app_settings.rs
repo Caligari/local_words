@@ -40,6 +40,7 @@ pub struct AppSettings {
     default_master_language: Language,
     ui_language: LanguageIdentifier, // not yet used
     autoload: Option<String>,        // name of data file to load
+    save_locations: Vec<PathBuf>, // save locations - places we have found save files previously (other than the core one)
 }
 
 #[allow(dead_code)]
@@ -55,6 +56,7 @@ impl AppSettings {
             default_master_language: master_language,
             ui_language: current_language.clone(),
             autoload: None,
+            save_locations: Vec::new(),
         }
     }
 
@@ -215,9 +217,6 @@ struct SettingsVersion {
     save_version: u16,
 }
 
-// !! This is where to set the new save settings to use
-type SaveSettings = SaveSettings1;
-
 const TEMPFILE_NAME: &str = "settings.tmp";
 const TEMPFILE_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
     let proj = &*PROJECT_DIRECTORY;
@@ -238,6 +237,8 @@ fn settings_save(settings: &AppSettings, file_name: &Path) -> Result<()> {
     }
 
     let save_settings: SaveSettings = settings.into();
+
+    info!("saving settings version {}", save_settings.save_version);
 
     let save_data = toml::to_string(&save_settings)?;
 
@@ -262,6 +263,8 @@ fn settings_save(settings: &AppSettings, file_name: &Path) -> Result<()> {
 
 /// Load settings from any version of save data
 fn settings_load(file_name: &Path) -> Result<AppSettings> {
+    // !! we could compare loaded version to CURRENT_SAVE_VERSION and indicate if we should do a new save proatively?
+
     let data = read_to_string(file_name)?;
 
     let Ok(SettingsVersion { save_version }) = toml::from_str(&data) else {
@@ -270,6 +273,19 @@ fn settings_load(file_name: &Path) -> Result<AppSettings> {
     };
 
     match save_version {
+        SAVE2_VERSION => {
+            info!("loading settings version {}", SAVE2_VERSION);
+            let Ok(settings) = toml::from_str::<SaveSettings2>(&data) else {
+                error!("unable to parse save settings 2");
+                return Err(anyhow!("unable to parse save as settings version 2"));
+            };
+            if !settings.validate() {
+                error!("settings 2 does not validate");
+                return Err(anyhow!("settings 2 does not validate"));
+            }
+            Ok(settings.into())
+        }
+
         SAVE1_VERSION => {
             info!("loading settings version {}", SAVE1_VERSION);
             let Ok(settings) = toml::from_str::<SaveSettings1>(&data) else {
@@ -277,8 +293,8 @@ fn settings_load(file_name: &Path) -> Result<AppSettings> {
                 return Err(anyhow!("unable to parse save as settings version 1"));
             };
             if !settings.validate() {
-                error!("settings does not validate");
-                return Err(anyhow!("settings does not validate"));
+                error!("settings 1 does not validate");
+                return Err(anyhow!("settings 1 does not validate"));
             }
             Ok(settings.into())
         }
@@ -286,6 +302,64 @@ fn settings_load(file_name: &Path) -> Result<AppSettings> {
         _ => {
             error!("unknown version {save_version} for settings");
             Err(anyhow!("unknown version {save_version} for settings"))
+        }
+    }
+}
+
+// !! This is where to set the new save settings to use
+type SaveSettings = SaveSettings2;
+const CURRENT_SAVE_VERSION: u16 = SAVE2_VERSION; // not currently used yet
+
+// ====================
+// SaveSettings2
+const SAVE2_VERSION: u16 = 2;
+
+#[derive(Debug, Serialize, Deserialize)] // Serialize, Deserialize
+struct SaveSettings2 {
+    save_version: u16,
+    theme: Theme,
+    default_master_language: String,
+    ui_language: String,
+    autoload: Option<String>,
+    save_locations: Vec<PathBuf>,
+}
+
+impl SaveSettings2 {
+    fn validate(&self) -> bool {
+        self.save_version == SAVE2_VERSION
+    }
+}
+
+impl From<SaveSettings2> for AppSettings {
+    fn from(value: SaveSettings2) -> Self {
+        let default_master_language =
+            if let Some(language) = Languages::find_language(&value.default_master_language) {
+                language
+            } else {
+                error!("Unable to parse master language; using English instead!");
+                Language::English
+            };
+        let ui_language = value.ui_language.parse().unwrap(); // !! better error handling than this -> fallback to default
+        AppSettings {
+            theme: value.theme,
+            zoom: DEFAULT_ZOOM,
+            default_master_language,
+            ui_language,
+            autoload: value.autoload,
+            save_locations: value.save_locations,
+        }
+    }
+}
+
+impl From<&AppSettings> for SaveSettings2 {
+    fn from(value: &AppSettings) -> Self {
+        SaveSettings2 {
+            save_version: SAVE2_VERSION,
+            theme: value.theme,
+            default_master_language: value.default_master_language.name().to_string(),
+            ui_language: value.ui_language.language.to_string(),
+            autoload: value.autoload.clone(),
+            save_locations: value.save_locations.clone(),
         }
     }
 }
@@ -325,6 +399,7 @@ impl From<SaveSettings1> for AppSettings {
             default_master_language,
             ui_language,
             autoload: value.autoload,
+            save_locations: Vec::new(),
         }
     }
 }
