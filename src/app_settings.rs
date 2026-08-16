@@ -39,7 +39,7 @@ pub struct AppSettings {
     zoom: f32,
     default_master_language: Language,
     ui_language: LanguageIdentifier, // not yet used
-                                     // autoload: Option<String>,  // name of data file to load
+    autoload: Option<String>,        // name of data file to load
 }
 
 #[allow(dead_code)]
@@ -54,6 +54,7 @@ impl AppSettings {
             zoom: DEFAULT_ZOOM,
             default_master_language: master_language,
             ui_language: current_language.clone(),
+            autoload: None,
         }
     }
 
@@ -191,6 +192,8 @@ impl AppSettings {
                             }
                         });
 
+                        // !! Autoload
+
                         ui.add_space(BETWEEN_FIELDS * 2.0);
 
                         let done_text = RichText::from(fl!("settings_done"));
@@ -297,6 +300,7 @@ struct SaveSettings1 {
     theme: Theme,
     default_master_language: String,
     ui_language: String,
+    autoload: Option<String>,
 }
 
 impl SaveSettings1 {
@@ -320,6 +324,7 @@ impl From<SaveSettings1> for AppSettings {
             zoom: DEFAULT_ZOOM,
             default_master_language,
             ui_language,
+            autoload: value.autoload,
         }
     }
 }
@@ -331,6 +336,7 @@ impl From<&AppSettings> for SaveSettings1 {
             theme: value.theme,
             default_master_language: value.default_master_language.name().to_string(),
             ui_language: value.ui_language.language.to_string(),
+            autoload: value.autoload.clone(),
         }
     }
 }
