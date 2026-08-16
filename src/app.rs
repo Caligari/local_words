@@ -56,6 +56,7 @@ pub struct App {
     data: Option<Dictionary>, // cow? box?
     message: Option<String>,
     child_windows: ChildWindows,
+    save_settings_result: Option<Receiver<Result<()>>>,
     // do we need todo/undo
     // todo_undo: TodoUndo,
 }
@@ -127,7 +128,12 @@ impl eframe::App for App {
                     // this returns Option<AppStatus>
                     (AppStatus::Settings, _) => {
                         if let Some(settings) = self.settings.as_mut() {
-                            settings.show_and_edit(ui)
+                            let (ret, save_now) = settings.show_and_edit(ui);
+
+                            if save_now {
+                                self.save_settings_result = Some(save_settings_thread(&settings));
+                            }
+                            ret
                         } else {
                             self.message = Some(fl!("no_app_settings"));
                             error!("unable to edit settings, as they do not exist!");
@@ -168,6 +174,10 @@ impl eframe::App for App {
         // }
 
         self.child_windows.show_windows(ui);
+
+        if self.save_settings_result.is_some() {
+            self.check_save_settings();
+        }
     }
 
     // This runs automatically when the application closes
@@ -192,6 +202,7 @@ impl App {
             data,
             message: None,
             child_windows: ChildWindows::default(),
+            save_settings_result: None,
             // todo_undo: TodoUndo::default(),
         })
     }
@@ -457,6 +468,28 @@ impl App {
         }
 
         ret
+    }
+
+    fn check_save_settings(&mut self) {
+        if let Some(recv) = &self.save_settings_result {
+            if let Ok(response) = recv.try_recv() {
+                debug!("got save settings response");
+                match response {
+                    Ok(()) => {
+                        info!("Settings saved");
+                    }
+
+                    Err(e) => {
+                        warn!("unable to save settings: {e}");
+                        self.message = Some(format!("Unable to save settings: {e}"));
+                        self.save_settings_result = None;
+                    }
+                }
+            }
+        } else {
+            error!("checking save settings when no save underway!");
+            return;
+        };
     }
 
     fn show_create(
@@ -1276,6 +1309,40 @@ fn load_settings_thread() -> Receiver<Result<AppSettings>> {
                 match send.send(Err(e)) {
                     Err(e) => {
                         error!("unable to send load settings result: {e}");
+                    }
+
+                    _ => (),
+                }
+            }
+        }
+
+        drop(send);
+    });
+
+    respond
+}
+
+fn save_settings_thread(settings: &AppSettings) -> Receiver<Result<()>> {
+    info!("trying to save app settings",);
+
+    let settings = settings.clone();
+    let (send, recv) = bounded(1);
+    let respond = recv.to_owned();
+    let _loader = thread::spawn(move || {
+        match settings.save() {
+            Ok(()) => match send.send(Ok(())) {
+                Err(e) => {
+                    error!("unable to send save settings result: {e}");
+                }
+
+                _ => (),
+            },
+
+            Err(e) => {
+                error!("unable to save settings: {e}");
+                match send.send(Err(e)) {
+                    Err(e) => {
+                        error!("unable to send save settings result: {e}");
                     }
 
                     _ => (),

@@ -9,7 +9,7 @@ use std::{
 use anyhow::{Result, anyhow};
 use eframe::egui::{ComboBox, RichText, Ui};
 use fluent_templates::LanguageIdentifier;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -87,8 +87,9 @@ impl AppSettings {
         self.zoom
     }
 
-    pub fn show_and_edit(&mut self, ui: &mut Ui) -> Option<AppStatus> {
+    pub fn show_and_edit(&mut self, ui: &mut Ui) -> (Option<AppStatus>, bool) {
         let mut ret = None;
+        let mut save_now = false;
 
         ui.horizontal(|ui| {
             ui.add_space(EDGE_COLUMN_WIDTH);
@@ -194,15 +195,15 @@ impl AppSettings {
 
                         let done_text = RichText::from(fl!("settings_done"));
                         if ui.button(done_text).clicked() {
-                            // should save settings - require another state?
                             ret = Some(AppStatus::Ready);
+                            save_now = true; // !! only if something was changed. Can we know?
                         }
                     })
                 })
             })
         });
 
-        ret
+        (ret, save_now)
     }
 }
 
@@ -223,12 +224,31 @@ const TEMPFILE_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
 
 /// Save settings in current save version
 fn settings_save(settings: &AppSettings, file_name: &Path) -> Result<()> {
+    if !file_name.exists() {
+        debug!(
+            "settings file [{}] does not exist",
+            file_name.to_string_lossy()
+        );
+        if let Some(dir_path) = file_name.parent() {
+            fs::create_dir_all(dir_path)?;
+        }
+    }
+
     let save_settings: SaveSettings = settings.into();
 
     let save_data = toml::to_string(&save_settings)?;
 
     // this should be a fairly short file
     let tempfile_path = &*TEMPFILE_PATH;
+    if !tempfile_path.exists() {
+        debug!(
+            "temp settings file [{}] does not exist",
+            tempfile_path.to_string_lossy()
+        );
+        if let Some(dir_path) = tempfile_path.parent() {
+            fs::create_dir_all(dir_path)?;
+        }
+    }
     let mut settings_file = File::create(tempfile_path)?;
     settings_file.write_all(save_data.as_bytes())?;
 
