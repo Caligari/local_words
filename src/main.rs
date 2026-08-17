@@ -22,8 +22,6 @@ const APP_NAME: &str = "Local Words";
 const COMPANY_DOMAIN: &str = "com.au";
 const COMPANY_NAME: &str = "VectorStorm";
 
-const EXTERNAL_DIR: &str = "../test_loc_data/2026_03_20";
-const INTERNAL_DIR: &str = "./";
 const MASTER_LANGUAGE: Language = Language::English;
 
 pub const APP_FILE_NAME: LazyLock<String> = LazyLock::new(|| {

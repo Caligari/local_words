@@ -9,7 +9,7 @@ use log::{debug, error, info};
 
 use crate::{
     APP_NAME,
-    app::{CHANGE_NOTES, HELP_TEXT, UI_PADDING},
+    app::{CHANGE_NOTES, UI_PADDING},
     localize::{arg, fl},
 };
 
@@ -164,8 +164,11 @@ impl ChildWindows {
                         ui.label(app_name);
                         ui.label(fl!("version_ver", arg!("ver", ver_num)));
                         ui.add_space(UI_PADDING);
-                        ui.label(HELP_TEXT.join("\n"));
+
+                        let help_text = RichText::new(fl!("help_text"));
+                        ui.label(help_text);
                         ui.add_space(UI_PADDING * 1.15);
+
                         ui.label(RichText::new(fl!("changenotes")).underline());
                         ScrollArea::vertical()
                             .max_height(SCROLL_HEIGHT)

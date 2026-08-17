@@ -42,8 +42,9 @@ pub type ContextList = Vec<String>;
 /// needed to show that data.
 #[derive(Debug)]
 pub struct Dictionary {
+    foundation_location: PathBuf,   // where are the base files found
+    work_location: Option<PathBuf>, // where are the work files created/loaded?
     primary_language: Language,
-    // paths: LocationPaths, // ?
     words: Words,
     // history?
     show: ShowState,
@@ -65,14 +66,17 @@ impl Dictionary {
         let tags = loaded.tags();
         let primary = Translation::from_loaded(&loaded, primary_language, &tags);
 
-        // let paths = LocationPaths(HashMap::new()); // do we need this?
-
-        info!("Dictionary created");
+        info!(
+            "Dictionary created (from [{}]",
+            loader.load_directory().to_string_lossy()
+        );
         Ok(Dictionary {
             primary_language,
             // paths,
             words: Words::new(primary, tags),
             show: ShowState::default_not(primary_language),
+            foundation_location: loader.load_directory(),
+            work_location: None,
         })
     }
 
@@ -193,10 +197,11 @@ impl Dictionary {
             ui.add_space(SMALL_SPACE);
 
             if let Some(new_state) = new_show_state
-                && new_state != self.show.state {
-                    info!("{} -> {}", self.show.state, new_state);
-                    self.show.state = new_state;
-                }
+                && new_state != self.show.state
+            {
+                info!("{} -> {}", self.show.state, new_state);
+                self.show.state = new_state;
+            }
 
             ui.horizontal(|ui| {
                 ui.add_space(EDGE_COLUMN_WIDTH);
@@ -520,9 +525,10 @@ impl Dictionary {
         let langs = self.words.translation_languages();
         for lang in langs {
             if let Some((_trans, t)) = self.words.translation_language(lang)
-                && t >= LanguageType::External {
-                    return false;
-                }
+                && t >= LanguageType::External
+            {
+                return false;
+            }
         }
 
         true
@@ -713,9 +719,10 @@ impl Words {
 
     fn missing_lines(&self, language: Option<Language>) -> Vec<usize> {
         if let Some(language) = language
-            && let Some((translation, _l_type)) = self.translation_language(language) {
-                return translation.missing_lines().clone();
-            }
+            && let Some((translation, _l_type)) = self.translation_language(language)
+        {
+            return translation.missing_lines().clone();
+        }
         Vec::new()
     }
 
@@ -799,11 +806,12 @@ impl ShowState {
         });
         let new_index = languages[selected].0;
         if let Some(new_lang) = Languages::from_index(new_index)
-            && new_lang != self.selected_translation {
-                info!("selected new language: {new_lang}");
-                self.selected_translation = new_lang;
-                return true;
-            }
+            && new_lang != self.selected_translation
+        {
+            info!("selected new language: {new_lang}");
+            self.selected_translation = new_lang;
+            return true;
+        }
         false
     }
 }

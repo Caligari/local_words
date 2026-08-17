@@ -37,15 +37,6 @@ const ERROR_FOREGROUND: Color32 = Color32::DARK_RED;
 
 const MODE_COLOR: Color32 = Color32::DARK_GREEN;
 
-// todo: localize this
-// probably could be one phrase?
-pub const HELP_TEXT: &[&str] = &[
-    "created by Liam Routt",
-    "",
-    "This utility allows you to edit and update localizations.",
-    "",
-];
-
 // ? Can these be localized?
 pub const CHANGE_NOTES: &[&str] = &["0.1.0 - initial version"];
 
@@ -195,11 +186,10 @@ impl App {
     pub fn new(cc: &CreationContext<'_>) -> Result<Self> {
         configure_fonts(cc, DEFAULT_ZOOM); // !! do not have zoom right now
 
-        let data = None;
         Ok(App {
             settings: None,
             status: AppStatus::default(),
-            data,
+            data: None,
             message: None,
             child_windows: ChildWindows::default(),
             save_settings_result: None,

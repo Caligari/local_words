@@ -15,6 +15,12 @@ version_ver = version: {$ver}
 changenotes = Change Notes
 acknowledge_error = Dismiss
 
+help_text = created by Liam Routt
+ for VectorStorm
+
+ This utility allows you to edit and update localizations.
+
+
 about_fonts = Using the Noto set of fonts,
  © 2012-2022, The Noto Project Authors,
  using the SIL Open Font License, Version 1.1

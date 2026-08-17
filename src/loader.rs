@@ -31,6 +31,10 @@ pub struct Loader {
 }
 
 impl Loader {
+    pub fn load_directory(&self) -> PathBuf {
+        self.container.load_directory().to_path_buf()
+    }
+
     pub fn zip_loader(zip_file: PathBuf) -> Loader {
         Loader {
             container: ZipLoader(zip_file),
@@ -175,6 +179,13 @@ pub enum LoaderContainer {
 }
 
 impl LoaderContainer {
+    pub fn load_directory(&self) -> &Path {
+        match self {
+            ZipLoader(directory) => directory.parent().expect("master data has no directory"),
+            DirLoader(directory) => directory.parent().expect("master data has no directory"),
+        }
+    }
+
     /// Note: this reads all data into a buffer
     pub fn get_buffer(&self, language: Language) -> Result<Vec<u8>> {
         match self {
@@ -664,11 +675,10 @@ fn repair_vrt_line_end(line_entry: &str, full_line: &str) -> ParseResult {
         // !! check for thrid last char is not \
         // should those be u8 checks?
         // !! should this recurrsively check again and again?
-        if line_entry.ends_with("\"\"")
-            && !line_entry.ends_with("\\\"\"") {
-                warn!("line ends with an extra quote: {full_line}");
-                return ParseResult::ExtraQuote(line_entry[..l + 1].to_string());
-            }
+        if line_entry.ends_with("\"\"") && !line_entry.ends_with("\\\"\"") {
+            warn!("line ends with an extra quote: {full_line}");
+            return ParseResult::ExtraQuote(line_entry[..l + 1].to_string());
+        }
 
         // !! we can safely ignore ; and , as final characters
         if l < line_entry.len() - 2 {
