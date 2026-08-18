@@ -1416,6 +1416,7 @@ pub const INDENT_COLUMN_WIDTH: f32 = 16.0;
 pub const BETWEEN_FIELDS: f32 = 8.0;
 pub const TINY_SPACE: f32 = 2.0;
 pub const SMALL_SPACE: f32 = 5.0;
+pub const BETWEEN_COLS: f32 = 12.0;
 pub const STRING_WIDTH: f32 = 500.0;
 pub const STRING_HEIGHT: f32 = 200.0;
 pub const STRING_RECT: Vec2 = Vec2 {

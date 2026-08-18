@@ -107,6 +107,7 @@ show_export = Export
 show_tag = Tag
 show_missing_num = ({$num} missing lines)
 show_context = Context
+show_notes = Notes
 
 initial_version = Initial version
 version_core = Core version

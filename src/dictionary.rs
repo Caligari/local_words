@@ -7,15 +7,16 @@ use std::{
 };
 
 use anyhow::Result;
-use eframe::egui::{ComboBox, Key, Label, RichText, Sense, Separator, Ui};
+use eframe::egui::{ComboBox, Grid, Key, Label, RichText, Sense, Separator, Ui};
 use enum_iterator::{Sequence, all};
 use log::{debug, error, info, warn};
 use versions::SemVer;
 
 use crate::{
     app::{
-        ACTIVE_COLOR, AppStatus, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR, MOD_MAIN_COLOR,
-        MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, TINY_SPACE,
+        ACTIVE_COLOR, AppStatus, BETWEEN_COLS, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR,
+        MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_WIDTH,
+        TINY_SPACE,
     },
     languages::{Language, Languages},
     loader::Loader,
@@ -293,20 +294,41 @@ impl Dictionary {
         });
     }
 
-    fn show_string(&mut self, language: Option<Language>, ui: &mut Ui) {
-        let missing_lines = self.words.missing_lines(language);
+    // !! we need to be able to edit Context (for primary) or Notes (for work? translation)
+    fn show_string(&mut self, translation_language: Option<Language>, ui: &mut Ui) {
+        let missing_lines = self.words.missing_lines(translation_language);
         ui.vertical(|ui| {
             // tag selector
             self.tag_selector(missing_lines, ui);
-            ui.allocate_ui(STRING_RECT, |ui| {
-                ui.set_min_height(STRING_HEIGHT);
-                ui.label(self.words.master_line(self.show.selected_tag));
+            ui.horizontal(|ui| {
+                Grid::new("master_line")
+                    .min_col_width(STRING_WIDTH)
+                    .max_col_width(STRING_WIDTH)
+                    .min_row_height(STRING_HEIGHT)
+                    .spacing([BETWEEN_COLS, SMALL_SPACE])
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            ui.set_min_height(STRING_HEIGHT);
+                            ui.set_max_width(STRING_WIDTH);
+                            ui.label(self.words.master_line(self.show.selected_tag));
+                        });
+                        let context_text = self.words.context_line(self.show.selected_tag);
+                        if !context_text.is_empty() {
+                            ui.vertical(|ui| {
+                                ui.set_max_width(STRING_WIDTH);
+                                let context_heading = RichText::new(fl!("show_context"));
+                                ui.heading(context_heading);
+                                ui.label(context_text);
+                            });
+                        }
+                        ui.end_row();
+                    });
             });
             ui.separator();
             ui.add_space(BETWEEN_FIELDS);
             ui.allocate_ui(STRING_RECT, |ui| {
                 ui.set_min_height(STRING_HEIGHT);
-                if let Some(language) = language {
+                if let Some(language) = translation_language {
                     ui.label(
                         self.words
                             .translation_line(language, self.show.selected_tag),
@@ -316,12 +338,14 @@ impl Dictionary {
             ui.separator();
             ui.add_space(BETWEEN_FIELDS);
 
-            let context_text = RichText::new(fl!("show_context"));
-            ui.label(context_text);
-            // primary language
-            // translation
-            // context
-            // notes?
+            if let Some(language) = translation_language {
+                let notes_text = RichText::new(fl!("show_notes"));
+                ui.heading(notes_text);
+                ui.label(
+                    self.words
+                        .translation_notes(language, self.show.selected_tag),
+                );
+            }
         });
     }
 
@@ -642,7 +666,7 @@ impl Display for LanguageType {
 #[derive(Debug)]
 struct Words {
     master: Translation,
-    tags: TagList,
+    tags: TagList, // !! changes here imply changes to translations and context
     core_translations: HashMap<Language, Translation>,
     work_translations: HashMap<Language, Translation>,
     master_context: ContextList,
@@ -717,6 +741,14 @@ impl Words {
         }
     }
 
+    fn context_line(&self, string_id: usize) -> RichText {
+        if let Some(context) = self.master_context.get(string_id) {
+            self.master.language().text_font(RichText::new(context)) // is this the right language?
+        } else {
+            RichText::new("")
+        }
+    }
+
     fn missing_lines(&self, language: Option<Language>) -> Vec<usize> {
         if let Some(language) = language
             && let Some((translation, _l_type)) = self.translation_language(language)
@@ -741,6 +773,16 @@ impl Words {
             ContentType::InProgress => ret.color(MOD_TRANS_COLOR),
             ContentType::Master => ret,
         }
+    }
+
+    fn translation_notes(&self, language: Language, string_id: usize) -> RichText {
+        let notes = if let Some((translation, _l_type)) = self.translation_language(language) {
+            // we should flag modified lines
+            translation.notes(string_id)
+        } else {
+            " "
+        };
+        self.master.language().text_font(RichText::new(notes)) // this is from the master language
     }
 }
 

@@ -19,6 +19,7 @@ use crate::{
 pub struct LineData {
     main_line: String,
     modification: Option<String>,
+    notes: String,
 }
 
 impl LineData {
@@ -26,6 +27,7 @@ impl LineData {
         LineData {
             main_line: line,
             modification: None,
+            notes: String::new(),
         }
     }
 
@@ -58,6 +60,10 @@ impl LineData {
         } else {
             (&self.main_line, ContentType::Master)
         }
+    }
+
+    pub fn notes(&self) -> &str {
+        &self.notes
     }
 
     /// This reports on the current line
@@ -396,12 +402,21 @@ impl Translation {
         &self.lines
     }
 
-    // returns the current line
+    /// Returns the current line
     pub fn line(&self, string_id: usize) -> (&str, ContentType) {
         if string_id < self.lines.len() {
             self.lines[string_id].current_line()
         } else {
             ("", ContentType::Master)
+        }
+    }
+
+    // returns the notes
+    pub fn notes(&self, string_id: usize) -> &str {
+        if string_id < self.lines.len() {
+            self.lines[string_id].notes()
+        } else {
+            ""
         }
     }
 
