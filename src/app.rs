@@ -24,7 +24,7 @@ use crate::{
     app_settings::{AppSettings, DEFAULT_ZOOM},
     child_windows::{ChildWindows, FileDialogType, FileTarget},
     dictionary::Dictionary,
-    languages::{Language, Languages, select_language},
+    languages::{FONT_BASE, FONT_CHINESE, Language, Languages, select_language},
     loader::Loader,
     localize::{arg, fl},
 };
@@ -1417,6 +1417,7 @@ pub const BETWEEN_FIELDS: f32 = 8.0;
 pub const TINY_SPACE: f32 = 2.0;
 pub const SMALL_SPACE: f32 = 5.0;
 pub const BETWEEN_COLS: f32 = 12.0;
+pub const STRING_ROWS: usize = 8; // depends on font size, surely
 pub const STRING_WIDTH: f32 = 500.0;
 pub const STRING_HEIGHT: f32 = 200.0;
 pub const STRING_RECT: Vec2 = Vec2 {
@@ -1574,6 +1575,14 @@ fn configure_fonts(ctx: &CreationContext, _zoom: f32) {
         (TextStyle::Monospace, FontId::new(13.0, Proportional)),
         (Button, FontId::new(13.0, Proportional)),
         (Small, FontId::new(12.0, Proportional)),
+        (
+            TextStyle::Name(FONT_BASE.into()),
+            FontId::new(14.0, Proportional),
+        ),
+        (
+            TextStyle::Name(FONT_CHINESE.into()),
+            FontId::new(14.0, FontFamily::Name(FONT_CHINESE.into())),
+        ),
     ]
     .into();
 

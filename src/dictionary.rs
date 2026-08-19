@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Result;
-use eframe::egui::{ComboBox, Grid, Key, Label, RichText, Sense, Separator, Ui};
+use eframe::egui::{ComboBox, Grid, Key, Label, RichText, Sense, Separator, TextEdit, Ui};
 use enum_iterator::{Sequence, all};
 use log::{debug, error, info, warn};
 use versions::SemVer;
@@ -15,8 +15,8 @@ use versions::SemVer;
 use crate::{
     app::{
         ACTIVE_COLOR, AppStatus, BETWEEN_COLS, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR,
-        MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_WIDTH,
-        TINY_SPACE,
+        MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_ROWS,
+        STRING_WIDTH, TINY_SPACE,
     },
     languages::{Language, Languages},
     loader::Loader,
@@ -312,13 +312,25 @@ impl Dictionary {
                             ui.set_max_width(STRING_WIDTH);
                             ui.label(self.words.master_line(self.show.selected_tag));
                         });
-                        let context_text = self.words.context_line(self.show.selected_tag);
-                        if !context_text.is_empty() {
+
+                        if let Some((context, lang)) =
+                            self.words.context_editable(self.show.selected_tag)
+                        {
                             ui.vertical(|ui| {
-                                ui.set_max_width(STRING_WIDTH);
+                                ui.set_min_width(STRING_WIDTH);
+                                ui.set_min_height(STRING_HEIGHT);
                                 let context_heading = RichText::new(fl!("show_context"));
                                 ui.heading(context_heading);
-                                ui.label(context_text);
+                                if translation_language.is_none() {
+                                    ui.add(
+                                        TextEdit::multiline(context)
+                                            .font(lang.font_selection())
+                                            .desired_width(STRING_WIDTH)
+                                            .desired_rows(STRING_ROWS),
+                                    );
+                                } else {
+                                    ui.label(lang.text_font(RichText::new(&*context)));
+                                }
                             });
                         }
                         ui.end_row();
@@ -636,28 +648,6 @@ impl Display for LanguageType {
     }
 }
 
-// The categories of dictionary lines: Main, Achivements, and Presence.
-// #[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Sequence, Clone, Copy)]
-// pub enum Category {
-//     Main,
-//     Achievements,
-//     Presence,
-// }
-
-// const NUM_CATEGORIES: usize = cardinality::<Category>();
-
-// impl Category {
-//     /// return the filename tail for this category of lines
-//     pub fn get_tail(&self) -> &str {
-//         use Category::*;
-//         match self {
-//             Main => "",
-//             Achievements => ACHIEVE_NAME,
-//             Presence => PRESENCE_NAME,
-//         }
-//     }
-// }
-
 // ---------------------
 // Words
 //
@@ -675,12 +665,13 @@ struct Words {
 
 impl Words {
     pub fn new(master: Translation, tags: TagList) -> Self {
+        let size = tags.len();
         Words {
             master,
             tags,
             core_translations: HashMap::new(),
             work_translations: HashMap::new(),
-            master_context: ContextList::new(),
+            master_context: vec![String::new(); size],
             versions: ContentVersions::default(),
         }
     }
@@ -741,11 +732,20 @@ impl Words {
         }
     }
 
+    // ?? do we need this
     fn context_line(&self, string_id: usize) -> RichText {
         if let Some(context) = self.master_context.get(string_id) {
             self.master.language().text_font(RichText::new(context)) // is this the right language?
         } else {
             RichText::new("")
+        }
+    }
+
+    fn context_editable(&mut self, string_id: usize) -> Option<(&mut String, &Language)> {
+        if string_id < self.master_context.len() {
+            Some((&mut self.master_context[string_id], self.master.language()))
+        } else {
+            None
         }
     }
 

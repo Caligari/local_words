@@ -1,6 +1,8 @@
 use std::{fmt::Display, sync::Arc};
 
-use eframe::egui::{ComboBox, FontData, FontDefinitions, FontFamily, RichText, Ui};
+use eframe::egui::{
+    ComboBox, FontData, FontDefinitions, FontFamily, FontSelection, RichText, TextStyle, Ui,
+};
 use enum_iterator::{Sequence, all};
 use log::warn;
 
@@ -113,6 +115,8 @@ impl Languages {
             .entry(FontFamily::Name(FONT_CHINESE.into()))
             .or_default()
             .insert(0, FONT_CHINESE.to_owned());
+
+        // ?? font_id as well?
     }
 }
 
@@ -190,6 +194,10 @@ impl Language {
         text.family(FontFamily::Name(
             self.language_data()[LANGUAGE_DATA_FONT_FAMILY].into(),
         ))
+    }
+
+    pub fn font_selection(&self) -> FontSelection {
+        TextStyle::Name(self.language_data()[LANGUAGE_DATA_FONT_FAMILY].into()).into()
     }
 }
 
