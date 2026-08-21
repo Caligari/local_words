@@ -5,7 +5,10 @@ use std::{env::current_exe, sync::LazyLock};
 use anyhow::Result;
 use directories_next::ProjectDirs;
 
-use crate::languages::Language;
+use crate::{
+    app::{BETWEEN_COLS, EDGE_COLUMN_WIDTH, STRING_WIDTH},
+    languages::Language,
+};
 
 mod dictionary;
 mod languages;
@@ -63,7 +66,10 @@ fn main() -> Result<()> {
         info!("Starting GUI");
 
         let app_name = format!("{} (version {})", APP_NAME, env!("CARGO_PKG_VERSION"));
-        let initial_window_size = Vec2::new(1200., 720.);
+        let initial_window_size = Vec2::new(
+            EDGE_COLUMN_WIDTH + (STRING_WIDTH * 2.0) + BETWEEN_COLS + EDGE_COLUMN_WIDTH,
+            800.,
+        );
 
         let win_option = NativeOptions {
             viewport: ViewportBuilder::default()

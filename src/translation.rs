@@ -66,6 +66,10 @@ impl LineData {
         &self.notes
     }
 
+    pub fn notes_editable(&mut self) -> &mut String {
+        &mut self.notes
+    }
+
     /// This reports on the current line
     pub fn is_empty(&self) -> bool {
         if let Some(mod_line) = self.modification.as_ref() {
@@ -418,6 +422,12 @@ impl Translation {
         } else {
             ""
         }
+    }
+
+    /// Warning: This expects that the string_id is valid, and will assert if not
+    pub fn notes_editable(&mut self, string_id: usize) -> &mut String {
+        assert!(string_id < self.lines.len());
+        self.lines[string_id].notes_editable()
     }
 
     pub fn missing_lines(&self) -> &Vec<usize> {

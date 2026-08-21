@@ -324,7 +324,7 @@ impl Dictionary {
                                 if translation_language.is_none() {
                                     ui.add(
                                         TextEdit::multiline(context)
-                                            .font(lang.font_selection())
+                                            .font(lang.font_selection()) // not needed? ui language already
                                             .desired_width(STRING_WIDTH)
                                             .desired_rows(STRING_ROWS),
                                     );
@@ -353,10 +353,20 @@ impl Dictionary {
             if let Some(language) = translation_language {
                 let notes_text = RichText::new(fl!("show_notes"));
                 ui.heading(notes_text);
-                ui.label(
-                    self.words
-                        .translation_notes(language, self.show.selected_tag),
+                ui.add(
+                    TextEdit::multiline(
+                        self.words
+                            .translation_notes_editable(language, self.show.selected_tag),
+                    )
+                    // .font(language.font_selection())  // this should be ui language?
+                    .desired_width(STRING_WIDTH * 2.0),
+                    // .desired_rows(STRING_ROWS),
                 );
+
+                // ui.label(
+                //     self.words
+                //         .translation_notes(language, self.show.selected_tag),
+                // );
             }
         });
     }
@@ -717,6 +727,34 @@ impl Words {
         }
     }
 
+    fn translation_present(&self, language: Language) -> bool {
+        *self.master.language() == language
+            || self.work_translations.contains_key(&language)
+            || self.core_translations.contains_key(&language)
+    }
+
+    /// Warning: this assumes the language is present and asserts if that is not the case
+    fn translation_language_editable(
+        &mut self,
+        language: Language,
+    ) -> (&mut Translation, LanguageType) {
+        if language == *self.master.language() {
+            (&mut self.master, LanguageType::Internal)
+        } else if self.work_translations.contains_key(&language) {
+            (
+                &mut *self.work_translations.get_mut(&language).unwrap(),
+                LanguageType::InProgress,
+            )
+        } else {
+            // this must be where the language is, or we assert
+            assert!(self.core_translations.contains_key(&language));
+            (
+                &mut *self.core_translations.get_mut(&language).unwrap(),
+                LanguageType::Internal,
+            )
+        }
+    }
+
     fn number_tags(&self) -> usize {
         self.tags.len()
     }
@@ -783,6 +821,13 @@ impl Words {
             " "
         };
         self.master.language().text_font(RichText::new(notes)) // this is from the master language
+    }
+
+    /// Warning, this assumes the language and string_id are valid, and will assert, otherwise
+    fn translation_notes_editable(&mut self, language: Language, string_id: usize) -> &mut String {
+        assert!(self.translation_present(language));
+        let (translation, _l_type) = self.translation_language_editable(language); // will assert if no language found
+        translation.notes_editable(string_id)
     }
 }
 
