@@ -9,7 +9,8 @@ use log::{debug, error, info};
 
 use crate::{
     APP_NAME,
-    app::{CHANGE_NOTES, UI_PADDING},
+    app::CHANGE_NOTES,
+    display::UI_PADDING,
     localize::{arg, fl},
 };
 

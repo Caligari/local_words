@@ -13,8 +13,8 @@ use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    APP_FILE_NAME, PROJECT_DIRECTORY,
-    app::{AppStatus, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, INDENT_COLUMN_WIDTH},
+    app::{APP_FILE_NAME, AppStatus, PROJECT_DIRECTORY},
+    display::{BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, INDENT_COLUMN_WIDTH},
     languages::{Language, Languages, select_language},
     localize::{CURRENT_LANGUAGES, LANGUAGE_LOADER, LANGUAGES_LIST, fl, language_name},
 };

@@ -13,8 +13,9 @@ use log::{debug, error, info, warn};
 use versions::SemVer;
 
 use crate::{
-    app::{
-        ACTIVE_COLOR, AppStatus, BETWEEN_COLS, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR,
+    app::AppStatus,
+    display::{
+        ACTIVE_COLOR, BETWEEN_COLS, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR,
         MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_ROWS,
         STRING_WIDTH, TINY_SPACE,
     },

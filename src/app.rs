@@ -1,41 +1,63 @@
 use std::{
     cell::{RefCell, RefMut},
     collections::BTreeMap,
+    env::current_exe,
     fmt::Display,
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, LazyLock},
     thread,
 };
 
 use anyhow::Result;
 use crossbeam_channel::{Receiver, bounded};
+use directories_next::ProjectDirs;
 use eframe::{
     CreationContext, Frame,
     egui::{
-        Align, Button, CentralPanel, Color32, FontData, FontDefinitions, FontFamily, FontId,
-        Layout, MenuBar, Panel, RichText, Separator, Spinner, Ui, Vec2, ViewportCommand,
-        style::TextStyle,
+        Align, Button, CentralPanel, FontData, FontDefinitions, FontFamily, FontId, Layout,
+        MenuBar, Panel, RichText, Separator, Spinner, Ui, ViewportCommand, style::TextStyle,
     },
 };
 use log::{debug, error, info, warn};
 
 use crate::{
-    MASTER_LANGUAGE,
+    COMPANY_DOMAIN, COMPANY_NAME,
     app_settings::{AppSettings, DEFAULT_ZOOM},
     child_windows::{ChildWindows, FileDialogType, FileTarget},
     dictionary::Dictionary,
+    display::{
+        BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, ERROR_BACKGROUND, ERROR_FOREGROUND, ERROR_SPACE,
+        INDENT_COLUMN_WIDTH,
+    },
     languages::{FONT_BASE, FONT_CHINESE, Language, Languages, select_language},
     loader::Loader,
     localize::{arg, fl},
 };
 
-pub const UI_PADDING: f32 = 8.0;
-const ERROR_SPACE: f32 = 16.0;
+const MASTER_LANGUAGE: Language = Language::English;
 
-const ERROR_BACKGROUND: Color32 = Color32::from_rgb(255, 190, 190);
-const ERROR_FOREGROUND: Color32 = Color32::DARK_RED;
+pub const APP_FILE_NAME: LazyLock<String> = LazyLock::new(|| {
+    let Ok(exe_path) = current_exe() else {
+        panic!("Unable to find exe path");
+    };
 
-const MODE_COLOR: Color32 = Color32::DARK_GREEN;
+    let Some(exe_name) = exe_path.file_stem() else {
+        panic!("Unable to find exe name in {}", exe_path.display());
+    };
+
+    let base_name = exe_name.to_string_lossy();
+    base_name.to_string()
+});
+
+pub const PROJECT_DIRECTORY: LazyLock<ProjectDirs> = LazyLock::new(|| {
+    let base_name = &*APP_FILE_NAME;
+    let Some(base_dir) = ProjectDirs::from(COMPANY_DOMAIN, COMPANY_NAME, &base_name) else {
+        panic!(
+            "Unable to find project directory for {COMPANY_DOMAIN}, {COMPANY_NAME}, {base_name}"
+        );
+    };
+    base_dir
+});
 
 // ? Can these be localized?
 pub const CHANGE_NOTES: &[&str] = &["0.1.0 - initial version"];
@@ -1409,26 +1431,6 @@ fn create_dictionary_thread(
 
 // display functions
 // -----------------
-
-// layout constants
-pub const EDGE_COLUMN_WIDTH: f32 = 40.0;
-pub const INDENT_COLUMN_WIDTH: f32 = 16.0;
-pub const BETWEEN_FIELDS: f32 = 8.0;
-pub const TINY_SPACE: f32 = 2.0;
-pub const SMALL_SPACE: f32 = 5.0;
-pub const BETWEEN_COLS: f32 = 12.0;
-pub const STRING_ROWS: usize = 8; // depends on font size, surely
-pub const STRING_WIDTH: f32 = 500.0;
-pub const STRING_HEIGHT: f32 = 200.0;
-pub const STRING_RECT: Vec2 = Vec2 {
-    x: STRING_WIDTH,
-    y: STRING_HEIGHT,
-};
-
-pub const ACTIVE_COLOR: Color32 = Color32::DARK_GREEN; // should change with theme
-pub const MISSING_COLOR: Color32 = Color32::RED;
-pub const MOD_MAIN_COLOR: Color32 = Color32::GREEN;
-pub const MOD_TRANS_COLOR: Color32 = Color32::DARK_RED;
 
 // ===========================
 // AppStatus
