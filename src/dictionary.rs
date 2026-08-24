@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashMap},
     fmt::Display,
     hash::Hash,
@@ -7,6 +8,7 @@ use std::{
 };
 
 use anyhow::Result;
+use crossbeam_channel::Receiver;
 use eframe::egui::{ComboBox, Grid, Key, Label, RichText, Sense, Separator, TextEdit, Ui};
 use enum_iterator::{Sequence, all};
 use log::{debug, error, info, warn};
@@ -103,6 +105,7 @@ impl Dictionary {
         use DictionaryState::*;
 
         let mut new_show_state = None;
+        let mut new_app_status = None;
 
         ui.vertical(|ui| {
             // Main selector
@@ -139,7 +142,7 @@ impl Dictionary {
                 // Export?
                 let export_text = {
                     let mut text = RichText::new(fl!("show_export")).heading();
-                    if matches!(self.show.state, Export) {
+                    if matches!(self.show.state, Export(..)) {
                         text = text.color(ACTIVE_COLOR).underline();
                     }
                     text
@@ -191,7 +194,7 @@ impl Dictionary {
                     .clicked()
                 {
                     debug!("clicked on export");
-                    new_show_state = Some(DictionaryState::Export);
+                    new_show_state = Some(DictionaryState::Export(RefCell::new(ExportState::Show)));
                 }
             });
 
@@ -199,7 +202,7 @@ impl Dictionary {
             ui.add_space(SMALL_SPACE);
 
             if let Some(new_state) = new_show_state
-                && new_state != self.show.state
+            // && !matches!(&self.show.state, new_state)
             {
                 info!("{} -> {}", self.show.state, new_state);
                 self.show.state = new_state;
@@ -209,17 +212,16 @@ impl Dictionary {
                 ui.add_space(EDGE_COLUMN_WIDTH);
 
                 // The main content
-                match &self.show.state {
+                match self.show.state {
                     Overview => self.show_overview(ui),
                     Primary => self.show_primary(ui),
                     Translation(lang) => self.show_translation(*lang, ui),
-                    Export => self.show_export(ui),
-                    // _ => warn!("not implemented directory state"),
+                    Export(export_state) => new_app_status = self.show_export(export_state, ui), // _ => warn!("not implemented directory state"),
                 }
             });
         });
 
-        None
+        new_app_status
     }
 
     fn show_overview(&self, ui: &mut Ui) {
@@ -380,7 +382,14 @@ impl Dictionary {
         self.show_string(None, ui);
     }
 
-    fn show_export(&mut self, ui: &mut Ui) {
+    fn show_export(
+        &mut self,
+        export_state: &RefCell<ExportState>,
+        ui: &mut Ui,
+    ) -> Option<AppStatus> {
+        let mut export_state = export_state.borrow_mut();
+        let mut new_app_state = None;
+
         // Exports
         ui.vertical(|ui| {
             let template_heading = RichText::new(fl!("export_template_heading")).heading();
@@ -408,20 +417,27 @@ impl Dictionary {
 
             ui.add_space(BETWEEN_FIELDS);
 
-            ui.horizontal(|ui| {
-                let export_template_file = fl!("export_template_files");
-                let export_template_zip = fl!("export_template_zip");
+            let core_template_text = fl!("export_core_template");
+            if ui.button(core_template_text).clicked() {
+                debug!("clicked export core template file");
+                // *export_state = ExportState::WaitSelect(recv);
+                // new_app_state = Some(AppStatus);
+            }
 
-                if ui.button(export_template_file).clicked() {
-                    debug!("clicked export template file(s)");
-                }
+            // ui.horizontal(|ui| {
+            //     let export_template_file = fl!("export_template_files");
+            //     let export_template_zip = fl!("export_template_zip");
 
-                ui.add_space(BETWEEN_FIELDS);
+            //     if ui.button(export_template_file).clicked() {
+            //         debug!("clicked export template file(s)");
+            //     }
 
-                if ui.button(export_template_zip).clicked() {
-                    debug!("clicked export template zip");
-                }
-            });
+            //     ui.add_space(BETWEEN_FIELDS);
+
+            //     if ui.button(export_template_zip).clicked() {
+            //         debug!("clicked export template zip");
+            //     }
+            // });
 
             // export creates a work_translation (with nothing, if new)
             //
@@ -432,6 +448,8 @@ impl Dictionary {
             // selected translations is everything in work_translations
             ui.label("Export selection");
         });
+
+        new_app_state
     }
 
     fn tag_selector(&mut self, missing_lines: Vec<usize>, ui: &mut Ui) {
@@ -907,13 +925,13 @@ impl ShowState {
 // =====================
 // DictionaryState
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone)]
 enum DictionaryState {
     #[default]
     Overview,
     Primary,
     Translation(Language),
-    Export,
+    Export(RefCell<ExportState>),
 }
 
 impl Display for DictionaryState {
@@ -927,10 +945,18 @@ impl Display for DictionaryState {
                 Overview => fl!("show_overview"),
                 Primary => fl!("primary"),
                 Translation(lang) => format!("{} {}", fl!("translation"), lang.name()),
-                Export => fl!("show_export"),
+                Export(..) => fl!("show_export"),
             }
         )
     }
+}
+
+#[derive(Debug, Default, Clone)]
+enum ExportState {
+    #[default]
+    Show,
+    WaitSelect(Receiver<Result<PathBuf>>), // wait on UI to select save file
+    WaitExport(Receiver<Result<()>>), // wait on save activity - do we need to wait? Could be parallel?
 }
 
 // -------------------
