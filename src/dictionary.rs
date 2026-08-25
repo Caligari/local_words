@@ -14,7 +14,8 @@ use log::{debug, error, info, warn};
 use versions::SemVer;
 
 use crate::{
-    app::AppStatus,
+    app::{AppStatus, CHILD_WINDOWS},
+    child_windows::{FileDialogType, FileTarget},
     display::{
         ACTIVE_COLOR, BETWEEN_COLS, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR,
         MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_ROWS,
@@ -416,9 +417,16 @@ impl Dictionary {
 
                     let core_template_text = fl!("export_core_template");
                     if ui.button(core_template_text).clicked() {
-                        debug!("clicked export core template file");
+                        debug!("selecting export file");
                         self.show.export_state = ExportState::WaitSelect;
-                        // !! put up selection window
+                        unsafe {
+                            #[allow(static_mut_refs)]
+                            CHILD_WINDOWS.start_file_dialog(
+                                FileDialogType::LoadMasterZip,
+                                FileTarget::MasterZip,
+                                None,
+                            );
+                        };
 
                         // *export_state = ExportState::WaitSelect(recv);
                         // new_app_state = Some(AppStatus);
@@ -451,8 +459,29 @@ impl Dictionary {
             }
 
             ExportState::WaitSelect => {
-                debug!("selecting");
-                self.show.export_state = ExportState::Show;
+                #[allow(static_mut_refs)]
+                if let Some(selected) = unsafe { CHILD_WINDOWS.selected_file() } {
+                    if !selected.as_os_str().is_empty() {
+                        // checks for blank file selected, indicating cancel
+                        // process file
+                        let filename = selected.to_string_lossy().to_string();
+                        // let remote_filename = filename.clone();
+                        info!("selected file: {filename}");
+
+                        // !! check the zip is valid?
+
+                        info!("ExportSelect => DoExport");
+                        // let loader = Loader::zip_loader(PathBuf::from(filename));
+                        // new_stage = Some(CreateStage::Create(create_data, loader));
+                        debug!("exporting");
+                        self.show.export_state = ExportState::Show;
+                    } else {
+                        // blank file means we want to cancel
+                        // go back to show
+                        info!("ExportSelect => Show");
+                        self.show.export_state = ExportState::Show;
+                    }
+                }
             }
 
             _ => (),
