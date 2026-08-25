@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, HashMap},
     fmt::Display,
     hash::Hash,
@@ -142,7 +141,7 @@ impl Dictionary {
                 // Export?
                 let export_text = {
                     let mut text = RichText::new(fl!("show_export")).heading();
-                    if matches!(self.show.state, Export(..)) {
+                    if matches!(self.show.state, Export) {
                         text = text.color(ACTIVE_COLOR).underline();
                     }
                     text
@@ -194,7 +193,7 @@ impl Dictionary {
                     .clicked()
                 {
                     debug!("clicked on export");
-                    new_show_state = Some(DictionaryState::Export(RefCell::new(ExportState::Show)));
+                    new_show_state = Some(DictionaryState::Export);
                 }
             });
 
@@ -215,8 +214,11 @@ impl Dictionary {
                 match self.show.state {
                     Overview => self.show_overview(ui),
                     Primary => self.show_primary(ui),
-                    Translation(lang) => self.show_translation(*lang, ui),
-                    Export(export_state) => new_app_status = self.show_export(export_state, ui), // _ => warn!("not implemented directory state"),
+                    Translation(lang) => self.show_translation(lang, ui),
+                    Export => self.show_export(ui),
+                    // DoExport(recv) => {
+                    //     debug!("should export now");
+                    // }
                 }
             });
         });
@@ -382,74 +384,79 @@ impl Dictionary {
         self.show_string(None, ui);
     }
 
-    fn show_export(
-        &mut self,
-        export_state: &RefCell<ExportState>,
-        ui: &mut Ui,
-    ) -> Option<AppStatus> {
-        let mut export_state = export_state.borrow_mut();
-        let mut new_app_state = None;
+    fn show_export(&mut self, ui: &mut Ui) {
+        match self.show.export_state {
+            ExportState::Show => {
+                // Exports
+                ui.vertical(|ui| {
+                    let template_heading = RichText::new(fl!("export_template_heading")).heading();
+                    ui.label(template_heading);
 
-        // Exports
-        ui.vertical(|ui| {
-            let template_heading = RichText::new(fl!("export_template_heading")).heading();
-            ui.label(template_heading);
+                    let template_description = RichText::new(fl!("export_template_description"));
+                    ui.label(template_description);
 
-            let template_description = RichText::new(fl!("export_template_description"));
-            ui.label(template_description);
+                    ui.add_space(BETWEEN_FIELDS);
 
-            ui.add_space(BETWEEN_FIELDS);
+                    ui.indent("template_options", |ui| {
+                        ui.checkbox(
+                            &mut self.show.export_only_new,
+                            fl!("export_template_only_new"),
+                        );
+                        ui.checkbox(
+                            &mut self.show.export_existing,
+                            fl!("export_template_existing"),
+                        );
+                        ui.checkbox(
+                            &mut self.show.export_combine,
+                            fl!("export_template_combine"),
+                        );
+                    });
 
-            ui.indent("template_options", |ui| {
-                ui.checkbox(
-                    &mut self.show.export_only_new,
-                    fl!("export_template_only_new"),
-                );
-                ui.checkbox(
-                    &mut self.show.export_existing,
-                    fl!("export_template_existing"),
-                );
-                ui.checkbox(
-                    &mut self.show.export_combine,
-                    fl!("export_template_combine"),
-                );
-            });
+                    ui.add_space(BETWEEN_FIELDS);
 
-            ui.add_space(BETWEEN_FIELDS);
+                    let core_template_text = fl!("export_core_template");
+                    if ui.button(core_template_text).clicked() {
+                        debug!("clicked export core template file");
+                        self.show.export_state = ExportState::WaitSelect;
+                        // !! put up selection window
 
-            let core_template_text = fl!("export_core_template");
-            if ui.button(core_template_text).clicked() {
-                debug!("clicked export core template file");
-                // *export_state = ExportState::WaitSelect(recv);
-                // new_app_state = Some(AppStatus);
+                        // *export_state = ExportState::WaitSelect(recv);
+                        // new_app_state = Some(AppStatus);
+                    }
+
+                    // ui.horizontal(|ui| {
+                    //     let export_template_file = fl!("export_template_files");
+                    //     let export_template_zip = fl!("export_template_zip");
+
+                    //     if ui.button(export_template_file).clicked() {
+                    //         debug!("clicked export template file(s)");
+                    //     }
+
+                    //     ui.add_space(BETWEEN_FIELDS);
+
+                    //     if ui.button(export_template_zip).clicked() {
+                    //         debug!("clicked export template zip");
+                    //     }
+                    // });
+
+                    // export creates a work_translation (with nothing, if new)
+                    //
+                    // export translation template for set of languages - with or without current translations
+                    // also full list or only changed/added since last - to zip
+                    //
+                    // export mod with selected translations - to zip
+                    // selected translations is everything in work_translations
+                    ui.label("Export selection");
+                });
             }
 
-            // ui.horizontal(|ui| {
-            //     let export_template_file = fl!("export_template_files");
-            //     let export_template_zip = fl!("export_template_zip");
+            ExportState::WaitSelect => {
+                debug!("selecting");
+                self.show.export_state = ExportState::Show;
+            }
 
-            //     if ui.button(export_template_file).clicked() {
-            //         debug!("clicked export template file(s)");
-            //     }
-
-            //     ui.add_space(BETWEEN_FIELDS);
-
-            //     if ui.button(export_template_zip).clicked() {
-            //         debug!("clicked export template zip");
-            //     }
-            // });
-
-            // export creates a work_translation (with nothing, if new)
-            //
-            // export translation template for set of languages - with or without current translations
-            // also full list or only changed/added since last - to zip
-            //
-            // export mod with selected translations - to zip
-            // selected translations is everything in work_translations
-            ui.label("Export selection");
-        });
-
-        new_app_state
+            _ => (),
+        }
     }
 
     fn tag_selector(&mut self, missing_lines: Vec<usize>, ui: &mut Ui) {
@@ -878,6 +885,7 @@ struct ShowState {
     export_existing: bool,
     export_combine: bool,
     translation_list: Vec<(usize, String)>, // ? one for core, one for work?
+    export_state: ExportState,
 }
 
 impl ShowState {
@@ -931,7 +939,8 @@ enum DictionaryState {
     Overview,
     Primary,
     Translation(Language),
-    Export(RefCell<ExportState>),
+    Export,
+    // DoExport(Receiver<Result<()>>),
 }
 
 impl Display for DictionaryState {
@@ -945,7 +954,8 @@ impl Display for DictionaryState {
                 Overview => fl!("show_overview"),
                 Primary => fl!("primary"),
                 Translation(lang) => format!("{} {}", fl!("translation"), lang.name()),
-                Export(..) => fl!("show_export"),
+                Export => fl!("show_export"),
+                // DoExport(..) => fl!("show_export"),
             }
         )
     }
@@ -955,7 +965,7 @@ impl Display for DictionaryState {
 enum ExportState {
     #[default]
     Show,
-    WaitSelect(Receiver<Result<PathBuf>>), // wait on UI to select save file
+    WaitSelect,                       // wait on UI to select save file
     WaitExport(Receiver<Result<()>>), // wait on save activity - do we need to wait? Could be parallel?
 }
 
