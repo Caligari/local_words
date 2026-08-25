@@ -34,6 +34,8 @@ use crate::{
     localize::{arg, fl},
 };
 
+pub static mut CHILD_WINDOWS: LazyLock<ChildWindows> = LazyLock::new(|| ChildWindows::default());
+
 const MASTER_LANGUAGE: Language = Language::English;
 
 pub const APP_FILE_NAME: LazyLock<String> = LazyLock::new(|| {
@@ -68,7 +70,6 @@ pub struct App {
     status: AppStatus,
     data: Option<Dictionary>, // cow? box?
     message: Option<String>,
-    child_windows: ChildWindows,
     save_settings_result: Option<Receiver<Result<()>>>,
     // do we need todo/undo
     // todo_undo: TodoUndo,
@@ -186,7 +187,10 @@ impl eframe::App for App {
         // }
         // }
 
-        self.child_windows.show_windows(ui);
+        #[allow(static_mut_refs)]
+        unsafe {
+            CHILD_WINDOWS.show_windows(ui);
+        }
 
         if self.save_settings_result.is_some() {
             self.check_save_settings();
@@ -213,7 +217,6 @@ impl App {
             status: AppStatus::default(),
             data: None,
             message: None,
-            child_windows: ChildWindows::default(),
             save_settings_result: None,
             // todo_undo: TodoUndo::default(),
         })
@@ -345,7 +348,10 @@ impl App {
 
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui.button(fl!("about")).clicked() {
-                            self.child_windows.toggle_about();
+                            #[allow(static_mut_refs)]
+                            unsafe {
+                                CHILD_WINDOWS.toggle_about();
+                            }
                             info!("Requested About");
                         }
                     });
@@ -448,20 +454,24 @@ impl App {
         });
 
         match child {
-            Some(FileDialogType::LoadMasterZip) => {
-                self.child_windows.start_file_dialog(
+            Some(FileDialogType::LoadMasterZip) => unsafe {
+                #[allow(static_mut_refs)]
+                CHILD_WINDOWS.start_file_dialog(
                     FileDialogType::LoadMasterZip,
                     FileTarget::MasterZip,
                     None,
                 );
-            }
+            },
 
             Some(FileDialogType::LoadMasterDir) => {
-                self.child_windows.start_file_dialog(
-                    FileDialogType::LoadMasterDir,
-                    FileTarget::MasterDir,
-                    None,
-                );
+                #[allow(static_mut_refs)]
+                unsafe {
+                    CHILD_WINDOWS.start_file_dialog(
+                        FileDialogType::LoadMasterDir,
+                        FileTarget::MasterDir,
+                        None,
+                    );
+                }
             }
 
             None => (),
@@ -602,7 +612,8 @@ impl App {
                         }
 
                         CreateStage::SelectZip(create_data) => {
-                            if let Some(selected) = self.child_windows.selected_file() {
+                            #[allow(static_mut_refs)]
+                            if let Some(selected) = unsafe { CHILD_WINDOWS.selected_file() } {
                                 if !selected.as_os_str().is_empty() {
                                     // checks for blank file selected, indicating cancel
                                     // process file
@@ -625,7 +636,8 @@ impl App {
                         }
 
                         CreateStage::SelectDirectory(create_data) => {
-                            if let Some(selected) = self.child_windows.selected_file() {
+                            #[allow(static_mut_refs)]
+                            if let Some(selected) = unsafe { CHILD_WINDOWS.selected_file() } {
                                 if !selected.as_os_str().is_empty() {
                                     // checks for blank file selected, indicating cancel
                                     // process file
