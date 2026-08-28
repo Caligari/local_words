@@ -23,7 +23,10 @@ use log::{debug, error, info, warn};
 use crate::{
     COMPANY_DOMAIN, COMPANY_NAME,
     app_settings::{AppSettings, DEFAULT_ZOOM},
-    child_windows::{ChildWindows, FileDialogType, FileTarget},
+    child_windows::{
+        FileDialogStyle, get_new_selected_file, show_child_windows, start_file_dialog,
+        toggle_about_window,
+    },
     dictionary::Dictionary,
     display::{
         BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, ERROR_BACKGROUND, ERROR_FOREGROUND, ERROR_SPACE,
@@ -33,8 +36,6 @@ use crate::{
     loader::Loader,
     localize::{arg, fl},
 };
-
-pub static mut CHILD_WINDOWS: LazyLock<ChildWindows> = LazyLock::new(|| ChildWindows::default());
 
 const MASTER_LANGUAGE: Language = Language::English;
 
@@ -80,6 +81,7 @@ pub struct App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut Ui, frame: &mut Frame) {
         use AppStatus::*;
+        let mut message = None;
 
         if let Some(settings) = &self.settings {
             ui.set_visuals(settings.theme().default_visuals());
@@ -162,8 +164,10 @@ impl eframe::App for App {
                     // We have data, what do we show?
                     (_status, Some(data)) => {
                         // we have data, so show what info we need
-                        data.show(ui)
+                        let (stat, mess) = data.show(ui);
+                        message = mess;
                         // this returns Option<AppStatus>
+                        stat
                     }
                 }
             })
@@ -187,10 +191,12 @@ impl eframe::App for App {
         // }
         // }
 
-        #[allow(static_mut_refs)]
-        unsafe {
-            CHILD_WINDOWS.show_windows(ui);
-        }
+        show_child_windows(ui);
+
+        // #[allow(static_mut_refs)]
+        // unsafe {
+        //     CHILD_WINDOWS.show_windows(ui);
+        // }
 
         if self.save_settings_result.is_some() {
             self.check_save_settings();
@@ -348,10 +354,11 @@ impl App {
 
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui.button(fl!("about")).clicked() {
-                            #[allow(static_mut_refs)]
-                            unsafe {
-                                CHILD_WINDOWS.toggle_about();
-                            }
+                            toggle_about_window();
+                            // #[allow(static_mut_refs)]
+                            // unsafe {
+                            //     CHILD_WINDOWS.toggle_about();
+                            // }
                             info!("Requested About");
                         }
                     });
@@ -454,24 +461,12 @@ impl App {
         });
 
         match child {
-            Some(FileDialogType::LoadMasterZip) => unsafe {
-                #[allow(static_mut_refs)]
-                CHILD_WINDOWS.start_file_dialog(
-                    FileDialogType::LoadMasterZip,
-                    FileTarget::MasterZip,
-                    None,
-                );
-            },
+            Some(FileDialogStyle::LoadMasterZip) => {
+                start_file_dialog(FileDialogStyle::LoadMasterZip)
+            }
 
-            Some(FileDialogType::LoadMasterDir) => {
-                #[allow(static_mut_refs)]
-                unsafe {
-                    CHILD_WINDOWS.start_file_dialog(
-                        FileDialogType::LoadMasterDir,
-                        FileTarget::MasterDir,
-                        None,
-                    );
-                }
+            Some(FileDialogStyle::LoadMasterDir) => {
+                start_file_dialog(FileDialogStyle::LoadMasterDir)
             }
 
             None => (),
@@ -519,7 +514,7 @@ impl App {
         stage: &mut RefMut<CreateStage>,
         ui: &mut Ui,
     ) -> (
-        Option<FileDialogType>,
+        Option<FileDialogStyle>,
         Option<AppStatus>,
         Option<String>,
         Option<Dictionary>,
@@ -591,7 +586,7 @@ impl App {
                                 if ui.button(import_zip_text).clicked() {
                                     // request load dialog
                                     info!("requesting new from zip dialog");
-                                    child_needed = Some(FileDialogType::LoadMasterZip);
+                                    child_needed = Some(FileDialogStyle::LoadMasterZip);
 
                                     info!("CreateStage Setup => SelectZip");
                                     new_stage = Some(CreateStage::SelectZip(*create_data));
@@ -603,7 +598,7 @@ impl App {
                                 if ui.button(import_dir_text).clicked() {
                                     // request load dialog
                                     info!("requesting new from directory dialog");
-                                    child_needed = Some(FileDialogType::LoadMasterDir);
+                                    child_needed = Some(FileDialogStyle::LoadMasterDir);
 
                                     info!("CreateStage Setup => SelectDirectory");
                                     new_stage = Some(CreateStage::SelectDirectory(*create_data));
@@ -613,7 +608,7 @@ impl App {
 
                         CreateStage::SelectZip(create_data) => {
                             #[allow(static_mut_refs)]
-                            if let Some(selected) = unsafe { CHILD_WINDOWS.selected_file() } {
+                            if let Some(selected) = get_new_selected_file() {
                                 if !selected.as_os_str().is_empty() {
                                     // checks for blank file selected, indicating cancel
                                     // process file
@@ -637,7 +632,7 @@ impl App {
 
                         CreateStage::SelectDirectory(create_data) => {
                             #[allow(static_mut_refs)]
-                            if let Some(selected) = unsafe { CHILD_WINDOWS.selected_file() } {
+                            if let Some(selected) = get_new_selected_file() {
                                 if !selected.as_os_str().is_empty() {
                                     // checks for blank file selected, indicating cancel
                                     // process file

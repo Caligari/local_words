@@ -3,19 +3,22 @@ use std::{
     fmt::Display,
     hash::Hash,
     path::{Path, PathBuf},
-    str::FromStr,
+    thread,
 };
 
-use anyhow::Result;
-use crossbeam_channel::Receiver;
-use eframe::egui::{ComboBox, Grid, Key, Label, RichText, Sense, Separator, TextEdit, Ui};
+use anyhow::{Result, anyhow};
+use crossbeam_channel::{Receiver, bounded};
+use eframe::egui::{
+    Align, ComboBox, Grid, Key, Label, Layout, RichText, Sense, Separator, Spinner, TextEdit, Ui,
+};
 use enum_iterator::{Sequence, all};
 use log::{debug, error, info, warn};
+
 use versions::SemVer;
 
 use crate::{
-    app::{AppStatus, CHILD_WINDOWS},
-    child_windows::{FileDialogType, FileTarget},
+    app::AppStatus,
+    child_windows::{FileDialogStyle, get_new_selected_file, start_file_dialog},
     display::{
         ACTIVE_COLOR, BETWEEN_COLS, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR,
         MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_ROWS,
@@ -44,7 +47,7 @@ pub type ContextList = Vec<String>;
 //
 /// This struct contains the primary language and all translations, as well as the infomation
 /// needed to show that data.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Dictionary {
     foundation_location: PathBuf,   // where are the base files found
     work_location: Option<PathBuf>, // where are the work files created/loaded?
@@ -101,11 +104,13 @@ impl Dictionary {
         Ok(())
     }
 
-    pub fn show(&mut self, ui: &mut Ui) -> Option<AppStatus> {
+    /// returns requested new app status, and any Message
+    pub fn show(&mut self, ui: &mut Ui) -> (Option<AppStatus>, Option<String>) {
         use DictionaryState::*;
 
         let mut new_show_state = None;
-        let mut new_app_status = None;
+        let mut _new_app_status = None;
+        let mut message = None;
 
         ui.vertical(|ui| {
             // Main selector
@@ -216,15 +221,16 @@ impl Dictionary {
                     Overview => self.show_overview(ui),
                     Primary => self.show_primary(ui),
                     Translation(lang) => self.show_translation(lang, ui),
-                    Export => self.show_export(ui),
-                    // DoExport(recv) => {
-                    //     debug!("should export now");
-                    // }
+                    Export => {
+                        message = self.show_export(ui);
+                    } // DoExport(recv) => {
+                      //     debug!("should export now");
+                      // }
                 }
             });
         });
 
-        new_app_status
+        (_new_app_status, message)
     }
 
     fn show_overview(&self, ui: &mut Ui) {
@@ -385,7 +391,9 @@ impl Dictionary {
         self.show_string(None, ui);
     }
 
-    fn show_export(&mut self, ui: &mut Ui) {
+    fn show_export(&mut self, ui: &mut Ui) -> Option<String> {
+        let mut message = None;
+
         match self.show.export_state {
             ExportState::Show => {
                 // Exports
@@ -419,17 +427,7 @@ impl Dictionary {
                     if ui.button(core_template_text).clicked() {
                         debug!("selecting export file");
                         self.show.export_state = ExportState::WaitSelect;
-                        unsafe {
-                            #[allow(static_mut_refs)]
-                            CHILD_WINDOWS.start_file_dialog(
-                                FileDialogType::LoadMasterZip,
-                                FileTarget::MasterZip,
-                                None,
-                            );
-                        };
-
-                        // *export_state = ExportState::WaitSelect(recv);
-                        // new_app_state = Some(AppStatus);
+                        start_file_dialog(FileDialogStyle::ExportBaseTemplate);
                     }
 
                     // ui.horizontal(|ui| {
@@ -460,21 +458,17 @@ impl Dictionary {
 
             ExportState::WaitSelect => {
                 #[allow(static_mut_refs)]
-                if let Some(selected) = unsafe { CHILD_WINDOWS.selected_file() } {
+                if let Some(selected) = get_new_selected_file() {
                     if !selected.as_os_str().is_empty() {
                         // checks for blank file selected, indicating cancel
                         // process file
                         let filename = selected.to_string_lossy().to_string();
-                        // let remote_filename = filename.clone();
                         info!("selected file: {filename}");
 
-                        // !! check the zip is valid?
-
                         info!("ExportSelect => DoExport");
-                        // let loader = Loader::zip_loader(PathBuf::from(filename));
-                        // new_stage = Some(CreateStage::Create(create_data, loader));
+                        let recv = export_base_template_thread(self, selected);
                         debug!("exporting");
-                        self.show.export_state = ExportState::Show;
+                        self.show.export_state = ExportState::WaitExport(recv);
                     } else {
                         // blank file means we want to cancel
                         // go back to show
@@ -484,8 +478,35 @@ impl Dictionary {
                 }
             }
 
-            _ => (),
+            ExportState::WaitExport(ref export_result) => {
+                ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
+                    ui.add_space(80.);
+                    ui.add(Spinner::default().size(50.));
+                });
+                ui.request_repaint();
+
+                if let Ok(response) = export_result.try_recv() {
+                    debug!("got export response");
+                    match response {
+                        Ok(()) => {
+                            info!("Export Template created");
+                        }
+
+                        Err(e) => {
+                            error!("unable to export template: {e}");
+                            message = Some(format!("Unable to export template: {e}"));
+                            info!("Export Wait => Show");
+                            self.show.export_state = ExportState::Show;
+                        }
+                    }
+
+                    info!("Export Wait => Show");
+                    self.show.export_state = ExportState::Show;
+                }
+            }
         }
+
+        message
     }
 
     fn tag_selector(&mut self, missing_lines: Vec<usize>, ui: &mut Ui) {
@@ -592,30 +613,47 @@ impl Dictionary {
     //     }
     // }
 
-    pub fn export_master_for_translation(&self, export_path: &str) -> Result<()> {
+    pub fn export_base_template(&self, export_path: &Path) -> Result<()> {
         let language = &self.words.master;
-        let temp_path = PathBuf::from_str(export_path)?;
-        let master_language = self.get_master_language();
-        let language_file = format!("{}", master_language.language());
-        let mut master_filepath = temp_path.join(language_file);
-        master_filepath.add_extension("csv");
-        if let Err(e) = write_lang_csv(
-            &master_filepath,
-            &self.words.tags,
-            &language
-                .lines()
-                .iter()
-                .map(|ld| ld.current_line().0)
-                .collect(),
-            &self.words.master_context,
-        ) {
-            error!(
-                "unable to export {} for master language {}: {e}",
-                master_language.language(),
-                master_language.language()
-            );
+        // let temp_path = PathBuf::from_str(export_path)?;
+        // let master_language = self.get_master_language();
+        // let language_file = format!("{}", master_language.language());
+        // let mut master_filepath = temp_path.join(language_file);
+        // master_filepath.add_extension("csv");
+        let ext = export_path
+            .extension()
+            .map(|os| os.to_string_lossy().to_string());
+        match ext.as_deref() {
+            Some("csv") => {
+                // csv
+                if let Err(e) = write_lang_csv(
+                    &export_path,
+                    &self.words.tags,
+                    &language
+                        .lines()
+                        .iter()
+                        .map(|ld| ld.current_line().0)
+                        .collect(),
+                    &self.words.master_context,
+                ) {
+                    error!(
+                        "unable to export base template for master language {}: {e}",
+                        language.language()
+                    );
+                    Err(e)
+                } else {
+                    Ok(())
+                }
+            }
+
+            // Some("xlsx") => {
+            //     // xlsx
+            // }
+            Some(ex) => Err(anyhow!(
+                "file extenstion [{ex}] not recognized during template export"
+            )),
+            None => Err(anyhow!("no file extension present during template export")),
         }
-        Ok(())
     }
 
     fn get_master_language(&self) -> &Translation {
@@ -640,6 +678,44 @@ impl Dictionary {
             self.add_core_translation(trans); // is that what you want?
         }
     }
+}
+
+/// Create a thread to export the base template
+fn export_base_template_thread(
+    dictionary: &Dictionary,
+    export_path: PathBuf,
+) -> Receiver<Result<()>> {
+    info!("trying to save app settings",);
+
+    let dictionary = dictionary.clone(); // just master translation?
+    let (send, recv) = bounded(1);
+    let respond = recv.to_owned();
+    let _loader = thread::spawn(move || {
+        match dictionary.export_base_template(&export_path) {
+            Ok(()) => match send.send(Ok(())) {
+                Err(e) => {
+                    error!("unable to send save settings result: {e}");
+                }
+
+                _ => (),
+            },
+
+            Err(e) => {
+                error!("unable to save settings: {e}");
+                match send.send(Err(e)) {
+                    Err(e) => {
+                        error!("unable to send save settings result: {e}");
+                    }
+
+                    _ => (),
+                }
+            }
+        }
+
+        drop(send);
+    });
+
+    respond
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -718,7 +794,7 @@ impl Display for LanguageType {
 //
 /// The tags, context, and translations for a dictionary of lines, including the primary language and
 /// its translations.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Words {
     master: Translation,
     tags: TagList, // !! changes here imply changes to translations and context
@@ -1098,7 +1174,7 @@ impl Display for ContentType {
 // -------------------
 // VersionHistory
 //
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ContentVersions {
     current: BTreeMap<ContentType, DictionaryVersion>, // can we calculate these? I think not
 }

@@ -1,11 +1,15 @@
-use std::{fs::create_dir_all, path::PathBuf, sync::Arc};
+use std::{
+    fs::create_dir_all,
+    path::PathBuf,
+    sync::{Arc, LazyLock},
+};
 
 use eframe::egui::{
     Align, CentralPanel, Context, Layout, RichText, ScrollArea, Ui, ViewportBuilder, ViewportId,
     mutex::RwLock,
 };
 use egui_file_dialog::{DialogState, FileDialog, OpeningMode};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use crate::{
     APP_NAME,
@@ -13,6 +17,93 @@ use crate::{
     display::UI_PADDING,
     localize::{arg, fl},
 };
+
+static mut CHILD_WINDOWS: LazyLock<ChildWindows> = LazyLock::new(|| ChildWindows::default());
+
+pub fn show_child_windows(ui: &mut Ui) {
+    #[allow(static_mut_refs)]
+    unsafe {
+        CHILD_WINDOWS.show_windows(ui);
+    }
+}
+
+pub fn toggle_about_window() {
+    #[allow(static_mut_refs)]
+    unsafe {
+        CHILD_WINDOWS.toggle_about();
+    }
+}
+
+pub fn get_new_selected_file() -> Option<PathBuf> {
+    #[allow(static_mut_refs)]
+    unsafe {
+        CHILD_WINDOWS.selected_file()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileDialogStyle {
+    LoadMasterZip,
+    LoadMasterDir,
+    UpdateCoreZip,
+    ImportWorkZip,
+    ExportFullZip,
+    ExportWorkZip,
+    ExportBaseTemplate,
+    ExportTemplateZip,
+}
+
+pub fn start_file_dialog(style: FileDialogStyle) {
+    use FileDialogStyle::*;
+
+    #[allow(static_mut_refs)]
+    unsafe {
+        match style {
+            LoadMasterZip => {
+                CHILD_WINDOWS.start_file_dialog(
+                    FileDialogType::LoadMasterZip,
+                    FileTarget::MasterZip,
+                    None,
+                );
+            }
+
+            LoadMasterDir => {
+                CHILD_WINDOWS.start_file_dialog(
+                    FileDialogType::LoadMasterDir,
+                    FileTarget::MasterDir,
+                    None,
+                );
+            }
+
+            ExportBaseTemplate => {
+                CHILD_WINDOWS.start_file_dialog(
+                    FileDialogType::ExportBaseTemplate,
+                    FileTarget::ExportTemplateFile,
+                    None,
+                );
+            }
+
+            // UpdateCoreZip => {
+            //     CHILD_WINDOWS.start_file_dialog(
+            //         FileDialogType::ImportZip,
+            //         FileTarget::ImportZip,
+            //         None,
+            //     );
+            // }
+
+            // ExportFullZip => {
+            //     CHILD_WINDOWS.start_file_dialog(
+            //         FileDialogType::ExportZip,
+            //         FileTarget::ExportZip,
+            //         None,
+            //     );
+            // }
+            _ => {
+                warn!("requested unimplemented file dialog!")
+            } // do we want to return something?
+        }
+    }
+}
 
 pub struct ChildWindows {
     show_about: Arc<RwLock<bool>>,
@@ -23,6 +114,7 @@ pub struct ChildWindows {
     file_dialog_import_zip: FileDialogControl,
     file_dialog_export_zip: FileDialogControl,
     file_dialog_externals_zip: FileDialogControl,
+    file_dialog_base_template: FileDialogControl,
     // file_dialog_export: FileDialogControl,
     selected_file: Arc<RwLock<Option<PathBuf>>>,
 }
@@ -38,6 +130,7 @@ impl Default for ChildWindows {
             file_dialog_import_zip: FileDialogControl::new(FileTarget::ImportZip),
             file_dialog_export_zip: FileDialogControl::new(FileTarget::ExportZip),
             file_dialog_externals_zip: FileDialogControl::new(FileTarget::ExternalsZip),
+            file_dialog_base_template: FileDialogControl::new(FileTarget::ExportTemplateFile),
             // file_dialog_export: FileDialogControl::new(FileTarget::Export),
             selected_file: Arc::default(),
         }
@@ -51,7 +144,7 @@ impl ChildWindows {
     }
 
     /// show the file dialog
-    pub fn start_file_dialog(
+    fn start_file_dialog(
         &mut self,
         dialog_type: FileDialogType,
         target_type: FileTarget,
@@ -64,6 +157,7 @@ impl ChildWindows {
             FileTarget::ExternalsZip => &mut self.file_dialog_externals_zip,
             FileTarget::MasterZip => &mut self.file_dialog_master_zip_load,
             FileTarget::MasterDir => &mut self.file_dialog_master_dir_load,
+            FileTarget::ExportTemplateFile => &mut self.file_dialog_base_template,
             // FileTarget::Internal => &mut self.file_dialog_internal,
             // FileTarget::Export => &mut self.file_dialog_export,
         };
@@ -92,6 +186,7 @@ impl ChildWindows {
             // FileDialogType::Load => dialog_control.dialog.pick_file(),
             // FileDialogType::Save => dialog_control.dialog.save_file(),
             FileDialogType::ExportZip => dialog_control.dialog.save_file(),
+            FileDialogType::ExportBaseTemplate => dialog_control.dialog.save_file(),
         }
 
         dialog_control.current_mode = Some(dialog_type);
@@ -128,6 +223,10 @@ impl ChildWindows {
         }
 
         if let Some(new_file) = self.file_dialog_externals_zip.update(ui) {
+            *self.selected_file.write() = new_file;
+        }
+
+        if let Some(new_file) = self.file_dialog_base_template.update(ui) {
             *self.selected_file.write() = new_file;
         }
 
@@ -199,20 +298,21 @@ impl ChildWindows {
 // FileDialogType
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileDialogType {
+enum FileDialogType {
     // Load,
     // Save,
     LoadMasterZip,
     LoadMasterDir,
     ImportZip,
     ExportZip,
+    ExportBaseTemplate,
 }
 
 // ---------------------
 // FileDialogType
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileTarget {
+enum FileTarget {
     // Internal,
     MasterZip,
     MasterDir,
@@ -220,6 +320,7 @@ pub enum FileTarget {
     ExportZip,
     ExternalsZip,
     // Export,
+    ExportTemplateFile,
 }
 
 // ---------------------
@@ -234,6 +335,8 @@ struct FileDialogControl {
 
 const IMPORT_ZIP_EXTENSION: &str = "zip";
 const MASTER_EXTENSION: &str = "csv";
+const TEMPLATE_CSV_EXTENSION: &str = "csv";
+const TEMPLATE_XLSX_EXTENSION: &str = "xlsx";
 
 impl FileDialogControl {
     pub fn new(target: FileTarget) -> Self {
@@ -364,6 +467,30 @@ impl FileDialogControl {
                 .default_save_extension(fl!("file_dialog_import_zip_file").as_str())
                 .allow_path_edit_to_save_file_without_extension(true)
                 .load_via_thread(true),
+
+            FileTarget::ExportTemplateFile => {
+                FileDialog::new() // !! working on this
+                    .opening_mode(OpeningMode::LastPickedDir)
+                    // .initial_directory(directory)
+                    .default_file_name(fl!("default_base_template_file").as_str())
+                    .allow_file_overwrite(true)
+                    .add_file_filter_extensions(
+                        fl!("file_dialog_template_files").as_str(),
+                        vec![TEMPLATE_CSV_EXTENSION, TEMPLATE_XLSX_EXTENSION],
+                    )
+                    .add_save_extension(
+                        fl!("file_dialog_CSV_file").as_str(),
+                        TEMPLATE_CSV_EXTENSION,
+                    )
+                    .add_save_extension(
+                        fl!("file_dialog_XLSX_file").as_str(),
+                        TEMPLATE_XLSX_EXTENSION,
+                    )
+                    .default_file_filter(fl!("file_dialog_template_files").as_str())
+                    .default_save_extension(fl!("file_dialog_CSV_file").as_str())
+                    .allow_path_edit_to_save_file_without_extension(true)
+                    .load_via_thread(true)
+            }
         };
 
         FileDialogControl {
