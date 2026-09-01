@@ -28,7 +28,7 @@ use crate::{
     loader::Loader,
     localize::{arg, fl},
     translation::Translation,
-    writer::write_master_csv,
+    writer::{write_master_csv, write_master_xlsx},
 };
 
 const ACHIEVE_NAME: &str = "_achievements";
@@ -615,27 +615,22 @@ impl Dictionary {
 
     pub fn export_base_template(&self, export_path: &Path) -> Result<()> {
         let language = &self.words.master;
-        // let temp_path = PathBuf::from_str(export_path)?;
-        // let master_language = self.get_master_language();
-        // let language_file = format!("{}", master_language.language());
-        // let mut master_filepath = temp_path.join(language_file);
-        // master_filepath.add_extension("csv");
         let ext = export_path
             .extension()
             .map(|os| os.to_string_lossy().to_string());
+        let export_data = self
+            .words
+            .tags
+            .iter()
+            .zip(language.lines())
+            .zip(&self.words.master_context);
+
         match ext.as_deref() {
             Some("csv") => {
                 // csv
-                if let Err(e) = write_master_csv(
-                    &export_path,
-                    self.words
-                        .tags
-                        .iter()
-                        .zip(language.lines())
-                        .zip(&self.words.master_context),
-                ) {
+                if let Err(e) = write_master_csv(&export_path, export_data) {
                     error!(
-                        "unable to export base template for master language {}: {e}",
+                        "unable to export base template csv for master language {}: {e}",
                         language.language()
                     );
                     Err(e)
@@ -644,9 +639,19 @@ impl Dictionary {
                 }
             }
 
-            // Some("xlsx") => {
-            //     // xlsx
-            // }
+            Some("xlsx") => {
+                // xlsx
+                if let Err(e) = write_master_xlsx(&export_path, export_data) {
+                    error!(
+                        "unable to export base template xlsx for master language {}: {e}",
+                        language.language()
+                    );
+                    Err(e)
+                } else {
+                    Ok(())
+                }
+            }
+
             Some(ex) => Err(anyhow!(
                 "file extenstion [{ex}] not recognized during template export"
             )),

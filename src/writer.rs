@@ -10,10 +10,12 @@ use std::{
 use anyhow::{Ok, Result};
 use csv::WriterBuilder;
 use log::{debug, info};
+use rust_xlsxwriter::{Color, Format, FormatBorder, workbook::Workbook};
 use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    dictionary::{ContextList, TagList},
+    dictionary::{ContentType, ContextList, TagList},
+    localize::fl,
     translation::{LineData, Translation},
 };
 
@@ -130,25 +132,82 @@ pub fn write_master_csv(
     Ok(())
 }
 
-/// Write strings and context for a language out to a csv file
-pub fn write_master_csv_old(
+/// Write strings and context for a language out to a xlsx file.
+/// This will highlight the new/changed lines.
+///
+/// data: Zip of Tags and LineData and Context strings (tags.iter().zip(Lines).zip(Context)
+pub fn write_master_xlsx(
     filename: &Path,
-    tags: &TagList,
-    lang_strings: &Vec<&str>,
-    context: &ContextList,
+    data: Zip<Zip<std::slice::Iter<String>, std::slice::Iter<LineData>>, std::slice::Iter<String>>,
 ) -> Result<()> {
-    assert_eq!(tags.len(), lang_strings.len());
-    assert_eq!(tags.len(), context.len());
-    assert_eq!(filename.extension(), Some(OsStr::new("csv")));
+    assert_eq!(filename.extension(), Some(OsStr::new("xlsx")));
     info!("writing {}...", filename.to_string_lossy());
-    let mut csv_writer = WriterBuilder::new()
-        .quote_style(csv::QuoteStyle::NonNumeric)
-        .from_path(filename)?;
 
-    for ((tag, item), context) in tags.iter().zip(lang_strings).zip(context) {
-        let item = item.to_string();
-        csv_writer.write_record([tag, &item, context])?;
+    const NEW_LINE_BACKGROUND_COLOR: Color = Color::Theme(6, 3);
+    const NEW_LINE_FONT_COLOR: Color = Color::Default;
+    const TEMPLATE_TAG_COLUMN: u16 = 0;
+    const TEMPLATE_STRING_COLUMN: u16 = 1;
+    const TEMPLATE_CONTEXT_COLUMN: u16 = 2;
+    const TEMPLATE_HEADING_ROW: u32 = 0;
+
+    let normal_format = Format::default();
+    let heading_format = Format::new()
+        .set_bold()
+        .set_border_bottom(FormatBorder::Medium);
+    let new_data_format = Format::new()
+        .set_background_color(NEW_LINE_BACKGROUND_COLOR)
+        .set_font_color(NEW_LINE_FONT_COLOR);
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+
+    worksheet.set_column_autofit_width(TEMPLATE_TAG_COLUMN, 300);
+    worksheet.set_column_autofit_width(TEMPLATE_STRING_COLUMN, 500);
+    worksheet.set_column_autofit_width(TEMPLATE_CONTEXT_COLUMN, 400);
+
+    // write headings
+    worksheet.write_with_format(
+        TEMPLATE_HEADING_ROW,
+        TEMPLATE_TAG_COLUMN,
+        fl!("template_heading_tag"),
+        &heading_format,
+    )?;
+    worksheet.write_with_format(
+        TEMPLATE_HEADING_ROW,
+        TEMPLATE_STRING_COLUMN,
+        fl!("template_heading_string"),
+        &heading_format,
+    )?;
+    worksheet.write_with_format(
+        TEMPLATE_HEADING_ROW,
+        TEMPLATE_CONTEXT_COLUMN,
+        fl!("template_heading_context"),
+        &heading_format,
+    )?;
+
+    for (i, ((tag, line), context)) in data.enumerate() {
+        let line_num = u32::try_from(i + 1)?;
+
+        let (line_string, c_type) = line.current_line();
+        let format = match c_type {
+            ContentType::Master => &normal_format,
+            ContentType::InProgress => &new_data_format,
+        };
+
+        worksheet.write_row_with_format(
+            line_num,
+            TEMPLATE_TAG_COLUMN,
+            [tag, line_string, context],
+            format,
+        )?;
+        // worksheet.write_with_format(line_num, TEMPLATE_TAG_COLUMN, tag, format)?;
+        // worksheet.write_with_format(line_num, TEMPLATE_STRING_COLUMN, line_string, format)?;
+        // worksheet.write_with_format(line_num, TEMPLATE_CONTEXT_COLUMN, context, format)?;
     }
+
+    // worksheet.autofit();
+    workbook.save(filename)?;
+
     Ok(())
 }
 

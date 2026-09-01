@@ -130,6 +130,9 @@ export_template_combine = Combine languages into single file
 export_template_files = Create file(s)
 export_template_zip = Create zip
 export_core_template = Create Base Template
+template_heading_tag = Tag
+template_heading_string = String
+template_heading_context = Context Notes
 
 english = English
 french = French
