@@ -14,7 +14,7 @@ use rust_xlsxwriter::{Color, Format, FormatBorder, workbook::Workbook};
 use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    dictionary::{ContentType, ContextList, TagList},
+    dictionary::{ContentType, TagList},
     localize::fl,
     translation::{LineData, Translation},
 };
@@ -161,9 +161,9 @@ pub fn write_master_xlsx(
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
 
-    worksheet.set_column_autofit_width(TEMPLATE_TAG_COLUMN, 300);
-    worksheet.set_column_autofit_width(TEMPLATE_STRING_COLUMN, 500);
-    worksheet.set_column_autofit_width(TEMPLATE_CONTEXT_COLUMN, 400);
+    worksheet.set_column_autofit_width(TEMPLATE_TAG_COLUMN, 300)?;
+    worksheet.set_column_autofit_width(TEMPLATE_STRING_COLUMN, 500)?;
+    worksheet.set_column_autofit_width(TEMPLATE_CONTEXT_COLUMN, 400)?;
 
     // write headings
     worksheet.write_with_format(
