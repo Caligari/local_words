@@ -6,7 +6,7 @@ use eframe::egui::{
 use enum_iterator::{Sequence, all};
 use log::warn;
 
-use crate::{dictionary::INTERNAL_EXT, localize::fl, writer::FormatVersion};
+use crate::{dictionary::INTERNAL_EXT, localize::fl, writer::TranslationStructureVersion};
 
 type LanguageData = [&'static str; 3];
 const LANGUAGE_DATA_INTERNAL: usize = 0;
@@ -175,10 +175,14 @@ impl Language {
         format!("{master_name}_{}", self.external(),)
     }
 
-    pub fn internal_main_file_name(&self, format: FormatVersion) -> String {
+    pub fn internal_main_file_name(&self, format: TranslationStructureVersion) -> String {
         match format {
-            FormatVersion::Version0 => format!("{}.{}", self.internal(), INTERNAL_EXT),
-            FormatVersion::Version1 => format!("{}/00-base.{}", self.internal(), INTERNAL_EXT),
+            TranslationStructureVersion::Version0 => {
+                format!("{}.{}", self.internal(), INTERNAL_EXT)
+            }
+            TranslationStructureVersion::Version1 => {
+                format!("{}/00-base.{}", self.internal(), INTERNAL_EXT)
+            }
         }
     }
 

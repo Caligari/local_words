@@ -2,6 +2,7 @@ use std::{
     ffi::OsStr,
     fs::File,
     io::{BufWriter, Write},
+    iter::Zip,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -13,7 +14,7 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
     dictionary::{ContextList, TagList},
-    translation::Translation,
+    translation::{LineData, Translation},
 };
 
 pub type MainTags = Vec<String>;
@@ -59,7 +60,7 @@ pub fn create_externals_zip(
 pub fn create_vrt_zip(
     filename: &Path,
     internal_directory: &str,
-    format: FormatVersion,
+    format: TranslationStructureVersion,
     tags: &TagList,
     translations: Vec<Translation>,
 ) -> Result<()> {
@@ -110,8 +111,27 @@ pub fn write_lang_vrt(filename: &Path, tags: &TagList, lang_strings: &Vec<String
     Ok(())
 }
 
+/// Write strings and context for a language out to a csv file.
+///
+/// data: Zip of Tags and LineData and Context strings (tags.iter().zip(Lines).zip(Context)
+pub fn write_master_csv(
+    filename: &Path,
+    data: Zip<Zip<std::slice::Iter<String>, std::slice::Iter<LineData>>, std::slice::Iter<String>>,
+) -> Result<()> {
+    assert_eq!(filename.extension(), Some(OsStr::new("csv")));
+    info!("writing {}...", filename.to_string_lossy());
+    let mut csv_writer = WriterBuilder::new()
+        .quote_style(csv::QuoteStyle::NonNumeric)
+        .from_path(filename)?;
+    for ((tag, item), context) in data {
+        let item = item.current_line().0.to_string();
+        csv_writer.write_record([tag, &item, context])?;
+    }
+    Ok(())
+}
+
 /// Write strings and context for a language out to a csv file
-pub fn write_lang_csv(
+pub fn write_master_csv_old(
     filename: &Path,
     tags: &TagList,
     lang_strings: &Vec<&str>,
@@ -133,7 +153,7 @@ pub fn write_lang_csv(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FormatVersion {
+pub enum TranslationStructureVersion {
     Version0, // il8n / lang.vrt
     Version1, // il8n / lang / num-filename.vrt
 }

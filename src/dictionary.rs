@@ -28,7 +28,7 @@ use crate::{
     loader::Loader,
     localize::{arg, fl},
     translation::Translation,
-    writer::write_lang_csv,
+    writer::write_master_csv,
 };
 
 const ACHIEVE_NAME: &str = "_achievements";
@@ -626,15 +626,13 @@ impl Dictionary {
         match ext.as_deref() {
             Some("csv") => {
                 // csv
-                if let Err(e) = write_lang_csv(
+                if let Err(e) = write_master_csv(
                     &export_path,
-                    &self.words.tags,
-                    &language
-                        .lines()
+                    self.words
+                        .tags
                         .iter()
-                        .map(|ld| ld.current_line().0)
-                        .collect(),
-                    &self.words.master_context,
+                        .zip(language.lines())
+                        .zip(&self.words.master_context),
                 ) {
                     error!(
                         "unable to export base template for master language {}: {e}",

@@ -20,7 +20,7 @@ use crate::{
     dictionary::TagList,
     languages::{Language, Languages},
     loader::LoaderContainer::{DirLoader, ZipLoader},
-    writer::FormatVersion,
+    writer::TranslationStructureVersion,
 };
 
 const LANGUAGE_DIRECTORY: &str = "i18n/";
@@ -192,8 +192,8 @@ impl LoaderContainer {
             ZipLoader(zip_file) => {
                 let mut zfile = open_zip(zip_file)?;
                 let pathbase = PathBuf::from_str(LANGUAGE_DIRECTORY)?;
-                let interior_path =
-                    pathbase.join(language.internal_main_file_name(FormatVersion::Version1));
+                let interior_path = pathbase
+                    .join(language.internal_main_file_name(TranslationStructureVersion::Version1));
                 debug!(
                     "trying to find file {} in master zip",
                     interior_path.to_string_lossy()
@@ -205,8 +205,8 @@ impl LoaderContainer {
             }
 
             DirLoader(directory) => {
-                let interior_path =
-                    directory.join(language.internal_main_file_name(FormatVersion::Version1));
+                let interior_path = directory
+                    .join(language.internal_main_file_name(TranslationStructureVersion::Version1));
                 let mut ret = File::open(interior_path)?;
                 let mut buf = Vec::new();
                 ret.read_to_end(&mut buf)?;
