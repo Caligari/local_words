@@ -63,7 +63,10 @@ pub const PROJECT_DIRECTORY: LazyLock<ProjectDirs> = LazyLock::new(|| {
 });
 
 // ? Can these be localized?
-pub const CHANGE_NOTES: &[&str] = &["0.1.0 - initial version"];
+pub const CHANGE_NOTES: &[&str] = &[
+    "0.1.0 - initial version",
+    "0.1.1 - added handling for language def files",
+];
 
 #[allow(dead_code)]
 pub struct App {

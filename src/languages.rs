@@ -4,9 +4,12 @@ use eframe::egui::{
     ComboBox, FontData, FontDefinitions, FontFamily, FontSelection, RichText, TextStyle, Ui,
 };
 use enum_iterator::{Sequence, all};
-use log::warn;
+use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
 
-use crate::{dictionary::INTERNAL_EXT, localize::fl, writer::TranslationStructureVersion};
+use crate::{
+    dictionary::INTERNAL_EXT, loader::LoadFormat, localize::fl, writer::TranslationStructureVersion,
+};
 
 type LanguageData = [&'static str; 3];
 const LANGUAGE_DATA_INTERNAL: usize = 0;
@@ -216,4 +219,152 @@ pub fn select_language(selected: &mut usize, ui: &mut Ui) {
     let languages = Languages::name_list();
     ComboBox::from_id_salt("Lang")
         .show_index(ui, selected, languages.len(), |l| languages[l].clone());
+}
+
+// ========================
+// External Languages
+// ========================
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalLanguage {
+    Standard(String),
+    Asian(String),
+    Cyrillic(String),
+}
+
+impl ExternalLanguage {
+    pub fn from_def(buffer: &[u8]) -> Self {
+        const DEF_NAME_FIELD: &str = "displayNameEnglish";
+        const DEF_FONT_FIELD: &str = "customFont";
+        info!("loading external language from def data");
+        let load_format = LoadFormat::Vrt;
+        match load_format.load(buffer) {
+            Ok(terms) => {
+                let name = if let Some(name) = terms
+                    .iter()
+                    .find(|t| t.0 == DEF_NAME_FIELD)
+                    .map(|t| t.1.clone())
+                {
+                    name
+                } else {
+                    "".to_string()
+                };
+                match terms
+                    .iter()
+                    .find(|t| t.0 == DEF_FONT_FIELD)
+                    .map(|t| t.1.clone())
+                {
+                    Some(font) => match font.as_str() {
+                        "NotoSans-CJK" => {
+                            info!("  found external language {name} with Asian font");
+                            ExternalLanguage::Asian(name)
+                        }
+                        "NotoSans-Cyrillic" => {
+                            info!("  found external language {name} with Cyrillic font");
+                            ExternalLanguage::Cyrillic(name)
+                        }
+                        _ => {
+                            warn!("unexpected font name in language def: {font}");
+                            ExternalLanguage::Standard(name)
+                        }
+                    },
+                    None => {
+                        info!("  found external language {name} with Standard font");
+                        ExternalLanguage::Standard(name)
+                    }
+                }
+            }
+
+            Err(e) => {
+                error!("Unable to load language def: {e}");
+                ExternalLanguage::Standard("".to_string())
+            }
+        }
+    }
+
+    pub fn reset_name(&mut self, name: &str) {
+        use ExternalLanguage::*;
+
+        match self {
+            Standard(n) => *n = name.to_string(),
+            Asian(n) => *n = name.to_string(),
+            Cyrillic(n) => *n = name.to_string(),
+        }
+
+        info!("changed external language name to {name}");
+    }
+
+    pub fn external_define(&self) -> String {
+        use ExternalLanguage::*;
+
+        let (name, font) = match self {
+            Standard(n) => (n, ""),
+            Asian(n) => (n, "NotoSans-CJK"),
+            Cyrillic(n) => (n, "NotoSans-Cyrillic"),
+        };
+
+        format!(
+            r#"moLanguageDef
+        {{
+	displayNameEnglish "{}"
+
+	# If your language requires a special font, this is where you can specify it.
+	#
+	# If you need CJK glyphs, use "NotoSans-CJK".
+	# If you need cyrillic, use "NotoSans-Cyrillic"
+	#
+	# Otherwise, just leave it blank.
+
+	customFont "{}"
+        }}"#,
+            name, font
+        )
+    }
+}
+
+impl Default for ExternalLanguage {
+    fn default() -> Self {
+        info!("using default external language: <no name> with Standard font");
+        ExternalLanguage::Standard("".to_string())
+    }
+}
+
+// =========================
+// Tests
+// =========================
+
+#[cfg(test)]
+mod tests {
+    use crate::languages::ExternalLanguage::{self, Asian, Cyrillic, Standard};
+
+    #[test]
+    fn export_import_external_def() {
+        export_import(Asian("happy".to_string()));
+        export_import(Cyrillic("snappy".to_string()));
+        export_import(Standard("frog".to_string()));
+        export_import(Asian("".to_string()));
+        export_import(Cyrillic("".to_string()));
+        export_import(Standard("".to_string()));
+        export_import(ExternalLanguage::default());
+    }
+
+    fn export_import(orig: ExternalLanguage) {
+        let output = orig.external_define();
+        let buffer = output.as_bytes();
+        let inp = ExternalLanguage::from_def(buffer);
+        assert_eq!(orig, inp);
+        println!("completed test with {orig:?}");
+    }
+
+    #[test]
+    fn change_name() {
+        let orig = Asian("happy".to_string());
+        let mut other = orig.clone();
+        assert_eq!(orig, other);
+
+        println!("was: {other:?}");
+        other.reset_name("sad");
+        println!("now: {other:?}");
+        assert_ne!(orig, other);
+    }
 }

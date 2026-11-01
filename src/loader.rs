@@ -282,7 +282,7 @@ impl LoaderContainer {
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-enum LoadFormat {
+pub enum LoadFormat {
     #[default]
     Vrt,
     Csv,
@@ -310,10 +310,17 @@ impl LoadFormat {
         let mut ret = Vec::new();
         for line in buffer.lines() {
             let line = line?;
+            let line = line.trim(); // remove leading and trailing spaces first?
             let Some(equal) = line.find(" ") else {
                 continue; // ignoring empty? line
             };
             let tag = line[0..equal].trim();
+            if tag.starts_with('#') {
+                continue; // ignoring comment lines
+            }
+            if tag == "{" || tag == "}" {
+                continue; // ignoring bracket lines
+            }
             let val = repair_vrt_line_end(line[equal..].trim(), &line);
 
             let std::result::Result::Ok(val) = json::parse(val.extract_data()) else {
@@ -707,7 +714,7 @@ pub fn open_zip(filepath: &Path) -> Result<ZipArchive<File>> {
     ZipArchive::new(zfile).map_err(|ze| ze.into())
 }
 
-fn nom_vrt_line(line: &str) -> Option<(String, String)> {
+pub fn nom_vrt_line(line: &str) -> Option<(String, String)> {
     if line.is_empty() {
         return None;
     };
