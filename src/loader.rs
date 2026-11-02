@@ -14,11 +14,11 @@ use json::parse;
 use log::{debug, error, info, warn};
 use nom::{Parser, bytes::complete::take_until, combinator::rest};
 use words_count::WordsCount;
-use zip::ZipArchive;
+use zip::{ZipArchive, result::ZipResult};
 
 use crate::{
     dictionary::TagList,
-    languages::{Language, Languages},
+    languages::{ExternalLanguage, LANGUAGE_DEF_FILENAME, Language, Languages},
     loader::LoaderContainer::{DirLoader, ZipLoader},
     writer::TranslationStructureVersion,
 };
@@ -49,14 +49,18 @@ impl Loader {
 
     pub fn load_primary_language(&self, language: Language) -> Result<Loaded> {
         let buffer = self.container.get_buffer(language)?;
+        let def_buffer = self.container.get_def_buffer(language)?;
         debug!("have buffer of size {}", buffer.len());
-        Loaded::load_primary_language(LoadFormat::Vrt, &buffer)
+        debug!("have language def buffer of size {}", def_buffer.len());
+        Loaded::load_primary_language(LoadFormat::Vrt, &buffer, &def_buffer)
     }
 
     pub fn load_translation(&self, language: Language, tags: &TagList) -> Result<Loaded> {
         let buffer = self.container.get_buffer(language)?;
+        let def_buffer = self.container.get_def_buffer(language)?;
         debug!("have buffer of size {}", buffer.len());
-        Loaded::load_with_tags(tags, LoadFormat::Vrt, &buffer)
+        debug!("have language def buffer of size {}", def_buffer.len());
+        Loaded::load_with_tags(tags, LoadFormat::Vrt, &buffer, &def_buffer)
     }
 
     pub fn list_languages(&self) -> (HashSet<Language>, Vec<String>) {
@@ -77,21 +81,40 @@ pub struct Loaded {
     lines: usize,
     count: WordsCount,
     unknowns: HashMap<String, (String, Option<String>)>, // identifier, (text, context)
+    external_language: ExternalLanguage,
 }
 
 impl Loaded {
-    fn load_primary_language(format: LoadFormat, buffer: &[u8]) -> Result<Loaded> {
+    fn with_external_language(external_language: ExternalLanguage) -> Self {
+        Loaded {
+            external_language,
+            ..Default::default()
+        }
+    }
+
+    fn load_primary_language(
+        format: LoadFormat,
+        buffer: &[u8],
+        def_buffer: &[u8],
+    ) -> Result<Loaded> {
+        let external_language = ExternalLanguage::from_def(def_buffer);
         let lines = format.load(buffer)?;
-        let mut loaded = Loaded::default();
+        let mut loaded = Loaded::with_external_language(external_language);
         for (tag, line) in lines {
             loaded.add_line(tag.trim(), &line, None, true);
         }
         Ok(loaded)
     }
 
-    fn load_with_tags(tags: &TagList, format: LoadFormat, buffer: &[u8]) -> Result<Loaded> {
+    fn load_with_tags(
+        tags: &TagList,
+        format: LoadFormat,
+        buffer: &[u8],
+        def_buffer: &[u8],
+    ) -> Result<Loaded> {
+        let external_language = ExternalLanguage::from_def(def_buffer);
         let lines = format.load(buffer)?;
-        let mut loaded = Loaded::default();
+        let mut loaded = Loaded::with_external_language(external_language);
         for (tag, line) in lines {
             if tags.contains(&tag) {
                 loaded.add_line(tag.trim(), &line, None, true);
@@ -170,6 +193,10 @@ impl Loaded {
     pub fn all_unknowns(&self) -> HashMap<String, (String, Option<String>)> {
         self.unknowns.clone()
     }
+
+    pub fn external_language_def(&self) -> &ExternalLanguage {
+        &self.external_language
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -210,6 +237,41 @@ impl LoaderContainer {
                 let mut ret = File::open(interior_path)?;
                 let mut buf = Vec::new();
                 ret.read_to_end(&mut buf)?;
+                Ok(buf)
+            }
+        }
+    }
+
+    /// Note: this reads all language def data into a buffer
+    pub fn get_def_buffer(&self, language: Language) -> Result<Vec<u8>> {
+        match self {
+            ZipLoader(zip_file) => {
+                let mut zfile = open_zip(zip_file)?;
+                let pathbase = PathBuf::from_str(LANGUAGE_DIRECTORY)?;
+                let interior_path = pathbase
+                    .join(language.internal())
+                    .join(LANGUAGE_DEF_FILENAME);
+                debug!(
+                    "trying to find language def file {} in master zip",
+                    interior_path.to_string_lossy()
+                );
+                let mut buf = Vec::new();
+                if let ZipResult::Ok(mut arc) =
+                    zfile.by_name(interior_path.to_string_lossy().as_ref())
+                {
+                    arc.read_to_end(&mut buf)?;
+                };
+                Ok(buf)
+            }
+
+            DirLoader(directory) => {
+                let interior_path = directory
+                    .join(language.internal())
+                    .join(LANGUAGE_DEF_FILENAME);
+                let mut buf = Vec::new();
+                if let std::io::Result::Ok(mut ret) = File::open(interior_path) {
+                    ret.read_to_end(&mut buf)?;
+                }
                 Ok(buf)
             }
         }

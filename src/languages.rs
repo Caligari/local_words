@@ -11,6 +11,8 @@ use crate::{
     dictionary::INTERNAL_EXT, loader::LoadFormat, localize::fl, writer::TranslationStructureVersion,
 };
 
+pub const LANGUAGE_DEF_FILENAME: &str = "language.def";
+
 type LanguageData = [&'static str; 3];
 const LANGUAGE_DATA_INTERNAL: usize = 0;
 const LANGUAGE_DATA_EXTERNAL: usize = 1;
@@ -19,7 +21,7 @@ const LANGUAGE_DATA_FONT_FAMILY: usize = 2;
 const ENGLISH: LanguageData = ["english", "eng", FONT_BASE]; // internal, external
 const FRENCH: LanguageData = ["french", "fre", FONT_BASE]; // internal, external
 const GERMAN: LanguageData = ["german", "ger", FONT_BASE];
-const CHINESE: LanguageData = ["chinese", "zho-CN", FONT_CHINESE];
+const CHINESE: LanguageData = ["simplified-chinese", "zho-CN", FONT_CHINESE];
 const PORTUGUESE: LanguageData = ["portuguese-br", "por-BR", FONT_BASE];
 const CZECH: LanguageData = ["czech", "ces", FONT_BASE];
 const DUTCH: LanguageData = ["dutch", "dut", FONT_BASE];
@@ -269,7 +271,7 @@ impl ExternalLanguage {
                         }
                     },
                     None => {
-                        info!("  found external language {name} with Standard font");
+                        info!("  found external language <{name}> with Standard font");
                         ExternalLanguage::Standard(name)
                     }
                 }
@@ -284,7 +286,6 @@ impl ExternalLanguage {
 
     pub fn reset_name(&mut self, name: &str) {
         use ExternalLanguage::*;
-
         match self {
             Standard(n) => *n = name.to_string(),
             Asian(n) => *n = name.to_string(),
@@ -292,6 +293,24 @@ impl ExternalLanguage {
         }
 
         info!("changed external language name to {name}");
+    }
+
+    pub fn has_name(&self) -> bool {
+        use ExternalLanguage::*;
+        match self {
+            Standard(n) => !n.is_empty(),
+            Asian(n) => !n.is_empty(),
+            Cyrillic(n) => !n.is_empty(),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        use ExternalLanguage::*;
+        match self {
+            Standard(n) => n.as_str(),
+            Asian(n) => n.as_str(),
+            Cyrillic(n) => n.as_str(),
+        }
     }
 
     pub fn external_define(&self) -> String {
@@ -324,7 +343,7 @@ impl ExternalLanguage {
 
 impl Default for ExternalLanguage {
     fn default() -> Self {
-        info!("using default external language: <no name> with Standard font");
+        // info!("using default external language: <no name> with Standard font");
         ExternalLanguage::Standard("".to_string())
     }
 }

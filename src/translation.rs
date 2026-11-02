@@ -124,12 +124,15 @@ impl Translation {
             )
         }
 
-        let mut external_language = ExternalLanguage::default(); // !! should load this is possible
-        external_language.reset_name(&language.name());
+        let mut external_language = loaded.external_language_def().clone();
+        if !external_language.has_name() {
+            external_language.reset_name(&language.name());
+        }
 
         info!(
-            "language {}: Found {} tags (missing {} tags), with {} words",
+            "language {}/{}: Found {} tags (missing {} tags), with {} words",
             language,
+            external_language.name(),
             tags.len() - missing.len(),
             missing.len(),
             loaded.words()
