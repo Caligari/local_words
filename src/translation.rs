@@ -10,7 +10,7 @@ use log::{error, info};
 
 use crate::{
     dictionary::{ContentType, Location, TagList, UpdateReplace},
-    languages::{ExternalLanguage, Language},
+    languages::{CustomLanguage, Language},
     loader::{Loaded, LoaderOld},
     localize::{arg, fl},
 };
@@ -83,7 +83,7 @@ impl LineData {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Translation {
     language: Language,
-    external_language: ExternalLanguage,
+    external_language: CustomLanguage,
     // source: Location,
     lines: Vec<LineData>,
     extra_lines: HashMap<String, (String, Option<String>)>, // lines which do not match master tags list
@@ -126,13 +126,13 @@ impl Translation {
 
         let mut external_language = loaded.external_language_def().clone();
         if !external_language.has_name() {
-            external_language.reset_name(&language.name());
+            external_language.reset_display_name(&language.name());
         }
 
         info!(
             "language {}/{}: Found {} tags (missing {} tags), with {} words",
             language,
-            external_language.name(),
+            external_language.display_name(),
             tags.len() - missing.len(),
             missing.len(),
             loaded.words()
