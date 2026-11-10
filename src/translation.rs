@@ -15,71 +15,6 @@ use crate::{
     localize::{arg, fl},
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct LineData {
-    main_line: String,
-    modification: Option<String>,
-    notes: String,
-}
-
-impl LineData {
-    pub fn new(line: String) -> Self {
-        LineData {
-            main_line: line,
-            modification: None,
-            notes: String::new(),
-        }
-    }
-
-    // ? replace the modified as well, when this is replaced?
-    pub fn replace_main(&mut self, line: String) {
-        self.main_line = line;
-        self.modification = None; // ?? Is this what we intend
-    }
-
-    pub fn replace_modified(&mut self, opt_line: Option<String>) {
-        // no modification if it matches the main line
-        self.modification = if let Some(new_line) = opt_line {
-            if new_line == self.main_line {
-                None
-            } else {
-                Some(new_line)
-            }
-        } else {
-            opt_line
-        };
-    }
-
-    pub fn base_line(&self) -> &str {
-        &self.main_line
-    }
-
-    pub fn current_line(&self) -> (&str, ContentType) {
-        if let Some(mod_line) = self.modification.as_ref() {
-            (mod_line, ContentType::InProgress)
-        } else {
-            (&self.main_line, ContentType::Master)
-        }
-    }
-
-    pub fn notes(&self) -> &str {
-        &self.notes
-    }
-
-    pub fn notes_editable(&mut self) -> &mut String {
-        &mut self.notes
-    }
-
-    /// This reports on the current line
-    pub fn is_empty(&self) -> bool {
-        if let Some(mod_line) = self.modification.as_ref() {
-            mod_line.is_empty()
-        } else {
-            self.main_line.is_empty()
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Translation {
     language: Language,
@@ -409,6 +344,10 @@ impl Translation {
         &self.language
     }
 
+    pub fn external_language(&self) -> &CustomLanguage {
+        &self.external_language
+    }
+
     /// Returns the list of LineData lines. Use line_data.line() to get current string.
     pub fn lines(&self) -> &Vec<LineData> {
         &self.lines
@@ -443,7 +382,8 @@ impl Translation {
     }
 
     pub fn overview_string(&self) -> String {
-        let lang = self.language.to_string();
+        // let lang = self.language.to_string();
+        let lang = self.external_language.display_name().to_string();
         let lines = (self.lines.len() - self.missing.len()).to_string();
         let extra = string_if_non_zero(self.extra_lines.len());
         let missing = string_if_non_zero(self.missing.len());
@@ -466,6 +406,77 @@ impl Translation {
         )
     }
 }
+
+// ===============
+// LineData
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LineData {
+    main_line: String,
+    modification: Option<String>,
+    notes: String,
+}
+
+impl LineData {
+    pub fn new(line: String) -> Self {
+        LineData {
+            main_line: line,
+            modification: None,
+            notes: String::new(),
+        }
+    }
+
+    // ? replace the modified as well, when this is replaced?
+    pub fn replace_main(&mut self, line: String) {
+        self.main_line = line;
+        self.modification = None; // ?? Is this what we intend
+    }
+
+    pub fn replace_modified(&mut self, opt_line: Option<String>) {
+        // no modification if it matches the main line
+        self.modification = if let Some(new_line) = opt_line {
+            if new_line == self.main_line {
+                None
+            } else {
+                Some(new_line)
+            }
+        } else {
+            opt_line
+        };
+    }
+
+    pub fn base_line(&self) -> &str {
+        &self.main_line
+    }
+
+    pub fn current_line(&self) -> (&str, ContentType) {
+        if let Some(mod_line) = self.modification.as_ref() {
+            (mod_line, ContentType::InProgress)
+        } else {
+            (&self.main_line, ContentType::Master)
+        }
+    }
+
+    pub fn notes(&self) -> &str {
+        &self.notes
+    }
+
+    pub fn notes_editable(&mut self) -> &mut String {
+        &mut self.notes
+    }
+
+    /// This reports on the current line
+    pub fn is_empty(&self) -> bool {
+        if let Some(mod_line) = self.modification.as_ref() {
+            mod_line.is_empty()
+        } else {
+            self.main_line.is_empty()
+        }
+    }
+}
+
+// ===============
+// Utilities
 
 fn string_if_non_zero(value: usize) -> String {
     if value > 0 {
