@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     app::{APP_FILE_NAME, AppStatus, PROJECT_DIRECTORY},
     display::{BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, INDENT_COLUMN_WIDTH},
-    languages::{Language, Languages, select_language},
+    languages::{UiLanguage, UiLanguages, select_language},
     localize::{CURRENT_LANGUAGES, LANGUAGE_LOADER, LANGUAGES_LIST, fl, language_name},
 };
 
@@ -37,7 +37,7 @@ pub fn app_settings_file_path() -> PathBuf {
 pub struct AppSettings {
     theme: Theme,
     zoom: f32,
-    default_master_language: Language,
+    default_master_language: UiLanguage,
     ui_language: LanguageIdentifier, // not yet used
     autoload: Option<String>,        // name of data file to load
     save_locations: Vec<PathBuf>, // save locations - places we have found save files previously (other than the core one)
@@ -45,7 +45,7 @@ pub struct AppSettings {
 
 #[allow(dead_code)]
 impl AppSettings {
-    pub fn new(master_language: Language) -> Self {
+    pub fn new(master_language: UiLanguage) -> Self {
         let current_language = unsafe {
             let language_loader = &*LANGUAGE_LOADER;
             language_loader.current_language()
@@ -82,7 +82,7 @@ impl AppSettings {
         self.theme.into()
     }
 
-    pub fn master_language(&self) -> Language {
+    pub fn master_language(&self) -> UiLanguage {
         self.default_master_language
     }
 
@@ -186,7 +186,7 @@ impl AppSettings {
 
                             if selected != before {
                                 // Handle selection change
-                                if let Some(language) = Languages::from_index(selected) {
+                                if let Some(language) = UiLanguages::from_index(selected) {
                                     self.default_master_language = language;
                                 } else {
                                     warn!("unable to set language {selected}");
@@ -333,11 +333,11 @@ impl SaveSettings2 {
 impl From<SaveSettings2> for AppSettings {
     fn from(value: SaveSettings2) -> Self {
         let default_master_language =
-            if let Some(language) = Languages::find_language(&value.default_master_language) {
+            if let Some(language) = UiLanguages::find_language(&value.default_master_language) {
                 language
             } else {
                 error!("Unable to parse master language; using English instead!");
-                Language::English
+                UiLanguage::English
             };
         let ui_language = value.ui_language.parse().unwrap(); // !! better error handling than this -> fallback to default
         AppSettings {
@@ -386,11 +386,11 @@ impl SaveSettings1 {
 impl From<SaveSettings1> for AppSettings {
     fn from(value: SaveSettings1) -> Self {
         let default_master_language =
-            if let Some(language) = Languages::find_language(&value.default_master_language) {
+            if let Some(language) = UiLanguages::find_language(&value.default_master_language) {
                 language
             } else {
                 error!("Unable to parse master language; using English instead!");
-                Language::English
+                UiLanguage::English
             };
         let ui_language = value.ui_language.parse().unwrap(); // !! better error handling than this -> fallback to default
         AppSettings {

@@ -43,14 +43,14 @@ pub const FONT_CHINESE: &str = "chinese";
 const EXTERNAL_FONT_ASIAN: &str = "NotoSans-CJK";
 const EXTERNAL_FONT_CYRILLIC: &str = "NotoSans-Cyrillic";
 
-pub struct Languages;
-impl Languages {
-    pub fn all() -> Vec<Language> {
-        all::<Language>().collect::<Vec<_>>()
+pub struct UiLanguages;
+impl UiLanguages {
+    pub fn all() -> Vec<UiLanguage> {
+        all::<UiLanguage>().collect::<Vec<_>>()
     }
 
-    pub fn find_language(name: &str) -> Option<Language> {
-        for l in all::<Language>().collect::<Vec<_>>() {
+    pub fn find_language(name: &str) -> Option<UiLanguage> {
+        for l in all::<UiLanguage>().collect::<Vec<_>>() {
             if l.name() == name {
                 return Some(l);
             }
@@ -59,8 +59,8 @@ impl Languages {
         None
     }
 
-    pub fn find_internal(name: &str) -> Option<Language> {
-        for l in all::<Language>().collect::<Vec<_>>() {
+    pub fn find_internal(name: &str) -> Option<UiLanguage> {
+        for l in all::<UiLanguage>().collect::<Vec<_>>() {
             if l.internal() == name {
                 return Some(l);
             }
@@ -69,8 +69,8 @@ impl Languages {
         None
     }
 
-    pub fn from_index(index: usize) -> Option<Language> {
-        let langs = all::<Language>().collect::<Vec<_>>();
+    pub fn from_index(index: usize) -> Option<UiLanguage> {
+        let langs = all::<UiLanguage>().collect::<Vec<_>>();
         if index < langs.len() {
             Some(langs[index])
         } else {
@@ -80,12 +80,12 @@ impl Languages {
     }
 
     pub fn name_list() -> Vec<String> {
-        all::<Language>().map(|l| l.name()).collect()
+        all::<UiLanguage>().map(|l| l.name()).collect()
     }
 
     /// returns localized string and language index, ignoring the passed Language
-    pub fn list_not(not: Language) -> Vec<(usize, String)> {
-        let mut langs = all::<Language>()
+    pub fn list_not(not: UiLanguage) -> Vec<(usize, String)> {
+        let mut langs = all::<UiLanguage>()
             .filter_map(|l| {
                 if l != not {
                     Some((l.language_index(), l.name()))
@@ -130,7 +130,7 @@ impl Languages {
 }
 
 #[derive(Debug, Sequence, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-pub enum Language {
+pub enum UiLanguage {
     #[default]
     English,
     French,
@@ -145,7 +145,7 @@ pub enum Language {
     Spanish,
 }
 
-impl Language {
+impl UiLanguage {
     fn language_data(&self) -> &LanguageData {
         // !!!! This must match the Language enum order above
         const KNOWN_LANGUAGES: &[LanguageData] = &[
@@ -156,7 +156,7 @@ impl Language {
     }
 
     pub fn name(&self) -> String {
-        use Language::*;
+        use UiLanguage::*;
         match self {
             English => fl!("english"),
             French => fl!("french"),
@@ -214,7 +214,7 @@ impl Language {
     }
 }
 
-impl Display for Language {
+impl Display for UiLanguage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name())
     }
@@ -222,7 +222,7 @@ impl Display for Language {
 
 // ========================
 pub fn select_language(selected: &mut usize, ui: &mut Ui) {
-    let languages = Languages::name_list();
+    let languages = UiLanguages::name_list();
     ComboBox::from_id_salt("Lang")
         .show_index(ui, selected, languages.len(), |l| languages[l].clone());
 }
@@ -373,6 +373,12 @@ impl CustomLanguage {
 	customFont "{font}"
         }}"#
         )
+    }
+}
+
+impl Display for CustomLanguage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_name)
     }
 }
 

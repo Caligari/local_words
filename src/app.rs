@@ -32,12 +32,12 @@ use crate::{
         BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, ERROR_BACKGROUND, ERROR_FOREGROUND, ERROR_SPACE,
         INDENT_COLUMN_WIDTH,
     },
-    languages::{FONT_BASE, FONT_CHINESE, Language, Languages, select_language},
+    languages::{FONT_BASE, FONT_CHINESE, UiLanguage, UiLanguages, select_language},
     loader::Loader,
     localize::{arg, fl},
 };
 
-const MASTER_LANGUAGE: Language = Language::English;
+const MASTER_LANGUAGE: UiLanguage = UiLanguage::English;
 
 pub const APP_FILE_NAME: LazyLock<String> = LazyLock::new(|| {
     let Ok(exe_path) = current_exe() else {
@@ -558,7 +558,7 @@ impl App {
 
                                 if selected != before {
                                     // Handle selection change
-                                    if let Some(new_language) = Languages::from_index(selected) {
+                                    if let Some(new_language) = UiLanguages::from_index(selected) {
                                         create_data.primary_language = new_language;
                                         info!("selected primary language: {new_language}");
                                         // go to next stage
@@ -1532,14 +1532,14 @@ impl Display for AppStatus {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CreateData {
-    primary_language: Language,
+    primary_language: UiLanguage,
     load_translations: bool,
 }
 
 impl Default for CreateData {
     fn default() -> Self {
         CreateData {
-            primary_language: Language::default(),
+            primary_language: UiLanguage::default(),
             load_translations: true,
         }
     }
@@ -1566,7 +1566,7 @@ fn configure_fonts(ctx: &CreationContext, _zoom: f32) {
         ))),
     );
 
-    Languages::add_language_fonts(&mut fonts);
+    UiLanguages::add_language_fonts(&mut fonts);
 
     fonts
         .families

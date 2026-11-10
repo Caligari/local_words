@@ -10,79 +10,14 @@ use log::{error, info};
 
 use crate::{
     dictionary::{ContentType, Location, TagList, UpdateReplace},
-    languages::{CustomLanguage, Language},
+    languages::{CustomLanguage, UiLanguage},
     loader::{Loaded, LoaderOld},
     localize::{arg, fl},
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct LineData {
-    main_line: String,
-    modification: Option<String>,
-    notes: String,
-}
-
-impl LineData {
-    pub fn new(line: String) -> Self {
-        LineData {
-            main_line: line,
-            modification: None,
-            notes: String::new(),
-        }
-    }
-
-    // ? replace the modified as well, when this is replaced?
-    pub fn replace_main(&mut self, line: String) {
-        self.main_line = line;
-        self.modification = None; // ?? Is this what we intend
-    }
-
-    pub fn replace_modified(&mut self, opt_line: Option<String>) {
-        // no modification if it matches the main line
-        self.modification = if let Some(new_line) = opt_line {
-            if new_line == self.main_line {
-                None
-            } else {
-                Some(new_line)
-            }
-        } else {
-            opt_line
-        };
-    }
-
-    pub fn base_line(&self) -> &str {
-        &self.main_line
-    }
-
-    pub fn current_line(&self) -> (&str, ContentType) {
-        if let Some(mod_line) = self.modification.as_ref() {
-            (mod_line, ContentType::InProgress)
-        } else {
-            (&self.main_line, ContentType::Master)
-        }
-    }
-
-    pub fn notes(&self) -> &str {
-        &self.notes
-    }
-
-    pub fn notes_editable(&mut self) -> &mut String {
-        &mut self.notes
-    }
-
-    /// This reports on the current line
-    pub fn is_empty(&self) -> bool {
-        if let Some(mod_line) = self.modification.as_ref() {
-            mod_line.is_empty()
-        } else {
-            self.main_line.is_empty()
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Translation {
-    language: Language,
+    language: UiLanguage,
     external_language: CustomLanguage,
     // source: Location,
     lines: Vec<LineData>,
@@ -97,7 +32,7 @@ impl Hash for Translation {
 }
 
 impl Translation {
-    pub fn from_loaded(loaded: &Loaded, language: Language, tags: &TagList) -> Self {
+    pub fn from_loaded(loaded: &Loaded, language: UiLanguage, tags: &TagList) -> Self {
         info!("creating translation for {language} from loaded data");
         let mut missing = Vec::new();
         let extra_lines = loaded.all_unknowns();
@@ -405,8 +340,12 @@ impl Translation {
     //     Ok(())
     // }
 
-    pub fn language(&self) -> &Language {
+    pub fn language(&self) -> &UiLanguage {
         &self.language
+    }
+
+    pub fn external_language(&self) -> &CustomLanguage {
+        &self.external_language
     }
 
     /// Returns the list of LineData lines. Use line_data.line() to get current string.
@@ -443,7 +382,8 @@ impl Translation {
     }
 
     pub fn overview_string(&self) -> String {
-        let lang = self.language.to_string();
+        // let lang = self.language.to_string();
+        let lang = self.external_language.display_name().to_string();
         let lines = (self.lines.len() - self.missing.len()).to_string();
         let extra = string_if_non_zero(self.extra_lines.len());
         let missing = string_if_non_zero(self.missing.len());
@@ -467,6 +407,77 @@ impl Translation {
     }
 }
 
+// ===============
+// LineData
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LineData {
+    main_line: String,
+    modification: Option<String>,
+    notes: String,
+}
+
+impl LineData {
+    pub fn new(line: String) -> Self {
+        LineData {
+            main_line: line,
+            modification: None,
+            notes: String::new(),
+        }
+    }
+
+    // ? replace the modified as well, when this is replaced?
+    pub fn replace_main(&mut self, line: String) {
+        self.main_line = line;
+        self.modification = None; // ?? Is this what we intend
+    }
+
+    pub fn replace_modified(&mut self, opt_line: Option<String>) {
+        // no modification if it matches the main line
+        self.modification = if let Some(new_line) = opt_line {
+            if new_line == self.main_line {
+                None
+            } else {
+                Some(new_line)
+            }
+        } else {
+            opt_line
+        };
+    }
+
+    pub fn base_line(&self) -> &str {
+        &self.main_line
+    }
+
+    pub fn current_line(&self) -> (&str, ContentType) {
+        if let Some(mod_line) = self.modification.as_ref() {
+            (mod_line, ContentType::InProgress)
+        } else {
+            (&self.main_line, ContentType::Master)
+        }
+    }
+
+    pub fn notes(&self) -> &str {
+        &self.notes
+    }
+
+    pub fn notes_editable(&mut self) -> &mut String {
+        &mut self.notes
+    }
+
+    /// This reports on the current line
+    pub fn is_empty(&self) -> bool {
+        if let Some(mod_line) = self.modification.as_ref() {
+            mod_line.is_empty()
+        } else {
+            self.main_line.is_empty()
+        }
+    }
+}
+
+// ===============
+// Utilities
+
 fn string_if_non_zero(value: usize) -> String {
     if value > 0 {
         value.to_string()
@@ -475,7 +486,7 @@ fn string_if_non_zero(value: usize) -> String {
     }
 }
 
-fn get_loader(language: Language, location: Location, input_path: &Path) -> Result<LoaderOld> {
+fn get_loader(language: UiLanguage, location: Location, input_path: &Path) -> Result<LoaderOld> {
     let filename_base = {
         let mut f = PathBuf::from(input_path);
         // let language = match location {
@@ -508,7 +519,7 @@ fn get_loader(language: Language, location: Location, input_path: &Path) -> Resu
 }
 
 fn get_loaders(
-    language: Language,
+    language: UiLanguage,
     location: Location,
     input_path: &Path,
 ) -> Result<VecDeque<LoaderOld>> {

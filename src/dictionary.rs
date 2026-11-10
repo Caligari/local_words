@@ -24,7 +24,7 @@ use crate::{
         MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_ROWS,
         STRING_WIDTH, TINY_SPACE,
     },
-    languages::{Language, Languages},
+    languages::{CustomLanguage, UiLanguage, UiLanguages},
     loader::Loader,
     localize::{arg, fl},
     translation::Translation,
@@ -51,7 +51,7 @@ pub type ContextList = Vec<String>;
 pub struct Dictionary {
     foundation_location: PathBuf,   // where are the base files found
     work_location: Option<PathBuf>, // where are the work files created/loaded?
-    primary_language: Language,
+    primary_language: UiLanguage,
     words: Words,
     // history?
     show: ShowState,
@@ -59,7 +59,7 @@ pub struct Dictionary {
 }
 
 impl Dictionary {
-    pub fn new(primary_language: Language, loader: &Loader) -> Result<Self> {
+    pub fn new(primary_language: UiLanguage, loader: &Loader) -> Result<Self> {
         info!("creating Dictionary");
         let loaded = loader.load_primary_language(primary_language)?;
         info!(
@@ -73,6 +73,10 @@ impl Dictionary {
         let tags = loaded.tags();
         let primary = Translation::from_loaded(&loaded, primary_language, &tags);
 
+        let words = Words::new(primary, tags);
+        let language_list = words.translation_external_languages();
+        let external_primary_language = words.master_external_language().clone();
+
         info!(
             "Dictionary created (from [{}]",
             loader.load_directory().to_string_lossy()
@@ -80,14 +84,14 @@ impl Dictionary {
         Ok(Dictionary {
             primary_language,
             // paths,
-            words: Words::new(primary, tags),
-            show: ShowState::default_not(primary_language),
+            words,
+            show: ShowState::default_not_external(language_list, &external_primary_language), // default_not(primary_language),
             foundation_location: loader.load_directory(),
             work_location: None,
         })
     }
 
-    pub fn load_core_translation(&mut self, language: Language, loader: &Loader) -> Result<()> {
+    pub fn load_core_translation(&mut self, language: UiLanguage, loader: &Loader) -> Result<()> {
         let tags = &self.words.tags;
         let loaded = loader.load_translation(language, tags)?;
         let translation = Translation::from_loaded(&loaded, language, tags);
@@ -182,13 +186,15 @@ impl Dictionary {
                     .clicked()
                 {
                     debug!("clicked on translation");
-                    new_show_state =
-                        Some(DictionaryState::Translation(self.show.selected_translation));
+                    new_show_state = Some(DictionaryState::Translation(
+                        self.show.selected_language_string(),
+                    ));
                 }
                 if self.show.select_language(ui) {
                     // selected new language
-                    new_show_state =
-                        Some(DictionaryState::Translation(self.show.selected_translation));
+                    new_show_state = Some(DictionaryState::Translation(
+                        self.show.selected_language_string(),
+                    ));
                 }
                 ui.add_space(TINY_SPACE);
                 ui.add(Separator::default().spacing(TINY_SPACE));
@@ -220,7 +226,9 @@ impl Dictionary {
                 match self.show.state {
                     Overview => self.show_overview(ui),
                     Primary => self.show_primary(ui),
-                    Translation(lang) => self.show_translation(lang, ui),
+                    Translation(lang) => self.show_translation(lang, ui), // !! requires show_string
+                    // which requires Words to search by language string?
+                    // and maybe Translation to have CustomLanguage instead of UiLanguage
                     Export => {
                         message = self.show_export(ui);
                     } // DoExport(recv) => {
@@ -307,7 +315,7 @@ impl Dictionary {
     }
 
     // !! we need to be able to edit Context (for primary) or Notes (for work? translation)
-    fn show_string(&mut self, translation_language: Option<Language>, ui: &mut Ui) {
+    fn show_string(&mut self, translation_language: Option<UiLanguage>, ui: &mut Ui) {
         let missing_lines = self.words.missing_lines(translation_language);
         ui.vertical(|ui| {
             // tag selector
@@ -383,7 +391,7 @@ impl Dictionary {
         });
     }
 
-    fn show_translation(&mut self, language: Language, ui: &mut Ui) {
+    fn show_translation(&mut self, language: UiLanguage, ui: &mut Ui) {
         self.show_string(Some(language), ui);
     }
 
@@ -801,8 +809,8 @@ impl Display for LanguageType {
 struct Words {
     master: Translation,
     tags: TagList, // !! changes here imply changes to translations and context
-    core_translations: HashMap<Language, Translation>,
-    work_translations: HashMap<Language, Translation>,
+    core_translations: HashMap<UiLanguage, Translation>,
+    work_translations: HashMap<UiLanguage, Translation>,
     master_context: ContextList,
     versions: ContentVersions,
 }
@@ -820,8 +828,19 @@ impl Words {
         }
     }
 
-    fn translation_languages(&self) -> Vec<Language> {
+    pub fn master_external_language(&self) -> &CustomLanguage {
+        self.master.external_language()
+    }
+
+    fn translation_languages(&self) -> Vec<UiLanguage> {
         self.core_translations.keys().copied().collect()
+    }
+
+    fn translation_external_languages(&self) -> Vec<CustomLanguage> {
+        self.core_translations
+            .iter()
+            .map(|(_k, trans)| trans.external_language().clone())
+            .collect()
     }
 
     fn add_core_translation(&mut self, translation: &Translation) {
@@ -848,7 +867,7 @@ impl Words {
         }
     }
 
-    fn translation_language(&self, language: Language) -> Option<(&Translation, LanguageType)> {
+    fn translation_language(&self, language: UiLanguage) -> Option<(&Translation, LanguageType)> {
         if language == *self.master.language() {
             Some((&self.master, LanguageType::Internal))
         } else if let Some(translation) = self.work_translations.get(&language) {
@@ -861,7 +880,7 @@ impl Words {
         }
     }
 
-    fn translation_present(&self, language: Language) -> bool {
+    fn translation_present(&self, language: UiLanguage) -> bool {
         *self.master.language() == language
             || self.work_translations.contains_key(&language)
             || self.core_translations.contains_key(&language)
@@ -870,7 +889,7 @@ impl Words {
     /// Warning: this assumes the language is present and asserts if that is not the case
     fn translation_language_editable(
         &mut self,
-        language: Language,
+        language: UiLanguage,
     ) -> (&mut Translation, LanguageType) {
         if language == *self.master.language() {
             (&mut self.master, LanguageType::Internal)
@@ -913,7 +932,7 @@ impl Words {
         }
     }
 
-    fn context_editable(&mut self, string_id: usize) -> Option<(&mut String, &Language)> {
+    fn context_editable(&mut self, string_id: usize) -> Option<(&mut String, &UiLanguage)> {
         if string_id < self.master_context.len() {
             Some((&mut self.master_context[string_id], self.master.language()))
         } else {
@@ -921,7 +940,7 @@ impl Words {
         }
     }
 
-    fn missing_lines(&self, language: Option<Language>) -> Vec<usize> {
+    fn missing_lines(&self, language: Option<UiLanguage>) -> Vec<usize> {
         if let Some(language) = language
             && let Some((translation, _l_type)) = self.translation_language(language)
         {
@@ -930,7 +949,7 @@ impl Words {
         Vec::new()
     }
 
-    fn translation_line(&self, language: Language, string_id: usize) -> RichText {
+    fn translation_line(&self, language: UiLanguage, string_id: usize) -> RichText {
         let (line, c_type) =
             if let Some((translation, _l_type)) = self.translation_language(language) {
                 // we should flag modified lines
@@ -947,7 +966,7 @@ impl Words {
         }
     }
 
-    fn translation_notes(&self, language: Language, string_id: usize) -> RichText {
+    fn translation_notes(&self, language: UiLanguage, string_id: usize) -> RichText {
         let notes = if let Some((translation, _l_type)) = self.translation_language(language) {
             // we should flag modified lines
             translation.notes(string_id)
@@ -958,7 +977,11 @@ impl Words {
     }
 
     /// Warning, this assumes the language and string_id are valid, and will assert, otherwise
-    fn translation_notes_editable(&mut self, language: Language, string_id: usize) -> &mut String {
+    fn translation_notes_editable(
+        &mut self,
+        language: UiLanguage,
+        string_id: usize,
+    ) -> &mut String {
         assert!(self.translation_present(language));
         let (translation, _l_type) = self.translation_language_editable(language); // will assert if no language found
         translation.notes_editable(string_id)
@@ -987,7 +1010,8 @@ impl LocationPaths {
 #[derive(Debug, Default, Clone)]
 struct ShowState {
     state: DictionaryState,
-    selected_translation: Language, // !! needs to be Option, as there might be no translations
+    languages: Vec<CustomLanguage>,
+    selected_translation: Option<usize>, // Language, // !! needs to be Option, as there might be no translations
     selected_tag: usize,
     export_only_new: bool,
     export_existing: bool,
@@ -997,17 +1021,49 @@ struct ShowState {
 }
 
 impl ShowState {
-    pub fn default_not(not_selected: Language) -> Self {
-        let translation_list = Languages::list_not(not_selected);
+    //     pub fn default_not(not_selected: Language) -> Self {
+    //         let translation_list = Languages::list_not(not_selected);
+    //
+    //         let (i, _l) = translation_list
+    //             .first()
+    //             .expect("no translation found in ShowState default_not");
+    //         let selected_translation =
+    //             Languages::from_index(*i).expect("index error for Language in ShowState default_not");
+    //
+    //         ShowState {
+    //             state: DictionaryState::default(),
+    //             selected_translation,
+    //             selected_tag: 0,
+    //             translation_list,
+    //             ..Default::default()
+    //         }
+    //     }
 
-        let (i, _l) = translation_list
-            .first()
-            .expect("no translation found in ShowState default_not");
-        let selected_translation =
-            Languages::from_index(*i).expect("index error for Language in ShowState default_not");
+    pub fn default_not_external(
+        languages: Vec<CustomLanguage>,
+        not_selected: &CustomLanguage,
+    ) -> Self {
+        let translation_list: Vec<(usize, String)> = languages
+            .iter()
+            .enumerate()
+            .filter_map(|(i, lang)| {
+                if lang != not_selected {
+                    Some((i, lang.display_name().to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let selected_translation = if let Some((i, _translation)) = translation_list.first() {
+            Some(*i)
+        } else {
+            None
+        };
 
         ShowState {
             state: DictionaryState::default(),
+            languages,
             selected_translation,
             selected_tag: 0,
             translation_list,
@@ -1015,26 +1071,67 @@ impl ShowState {
         }
     }
 
+    pub fn selected_language_string(&self) -> String {
+        if let Some(selected) = self.selected_translation {
+            self.languages[selected].display_name().to_string()
+        } else {
+            "".to_string()
+        }
+    }
+
     /// returns true if a new language is selected
     pub fn select_language(&mut self, ui: &mut Ui) -> bool {
-        let index = self.selected_translation.language_index();
         let languages = &self.translation_list;
-        let mut selected = languages
-            .iter()
-            .position(|(i, _l)| index == *i)
-            .expect("cannot find language in ShowState select language");
-        ComboBox::from_id_salt("Lang").show_index(ui, &mut selected, languages.len(), |l| {
-            languages[l].1.as_str()
-        });
-        let new_index = languages[selected].0;
-        if let Some(new_lang) = Languages::from_index(new_index)
-            && new_lang != self.selected_translation
-        {
-            info!("selected new language: {new_lang}");
-            self.selected_translation = new_lang;
-            return true;
+        if let Some(mut selected) = {
+            if let Some(index) = self.selected_translation {
+                let select = languages
+                    .iter()
+                    .position(|(i, _l)| index == *i)
+                    .expect("cannot find language in ShowState select language");
+                Some(select)
+            } else {
+                if self.translation_list.len() < 1 {
+                    None
+                } else {
+                    Some(0)
+                }
+            }
+        } {
+            ComboBox::from_id_salt("Lang").show_index(ui, &mut selected, languages.len(), |l| {
+                languages[l].1.as_str()
+            });
+            if Some(selected) != self.selected_translation {
+                let new_lang = &languages[selected].1;
+                info!("selected new language: {new_lang}");
+                self.selected_translation = Some(selected);
+                true
+            } else {
+                // what goes here
+                false
+            }
+        } else {
+            // what goes here
+            false
         }
-        false
+
+        // let index = self.selected_translation.language_index();
+        // let languages = &self.translation_list;
+        // let mut selected = languages
+        //     .iter()
+        //     .position(|(i, _l)| index == *i)
+        //     .expect("cannot find language in ShowState select language");
+        // ComboBox::from_id_salt("Lang").show_index(ui, &mut selected, languages.len(), |l| {
+        //     languages[l].1.as_str()
+        // });
+        // let new_index = languages[selected].0;
+        // if let Some(new_lang) = Languages::from_index(new_index)
+        //     && new_lang != self.selected_translation
+        // {
+        //     info!("selected new language: {new_lang}");
+        //     self.selected_translation = new_lang;
+        //     return true;
+        // }
+        // false
     }
 }
 
@@ -1046,7 +1143,7 @@ enum DictionaryState {
     #[default]
     Overview,
     Primary,
-    Translation(Language),
+    Translation(String),
     Export,
     // DoExport(Receiver<Result<()>>),
 }
@@ -1061,7 +1158,7 @@ impl Display for DictionaryState {
             match self {
                 Overview => fl!("show_overview"),
                 Primary => fl!("primary"),
-                Translation(lang) => format!("{} {}", fl!("translation"), lang.name()),
+                Translation(lang) => format!("{} {}", fl!("translation"), lang),
                 Export => fl!("show_export"),
                 // DoExport(..) => fl!("show_export"),
             }

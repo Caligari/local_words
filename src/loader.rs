@@ -18,7 +18,7 @@ use zip::{ZipArchive, result::ZipResult};
 
 use crate::{
     dictionary::TagList,
-    languages::{CustomLanguage, LANGUAGE_DEF_FILENAME, Language, Languages},
+    languages::{CustomLanguage, LANGUAGE_DEF_FILENAME, UiLanguage, UiLanguages},
     loader::LoaderContainer::{DirLoader, ZipLoader},
     writer::TranslationStructureVersion,
 };
@@ -47,7 +47,7 @@ impl Loader {
         }
     }
 
-    pub fn load_primary_language(&self, language: Language) -> Result<Loaded> {
+    pub fn load_primary_language(&self, language: UiLanguage) -> Result<Loaded> {
         let buffer = self.container.get_buffer(language)?;
         let def_buffer = self.container.get_def_buffer(language)?;
         let lang_name = ""; // !! We need to be passed this, or is it in the container?
@@ -56,7 +56,7 @@ impl Loader {
         Loaded::load_primary_language(LoadFormat::Vrt, &buffer, lang_name, &def_buffer)
     }
 
-    pub fn load_translation(&self, language: Language, tags: &TagList) -> Result<Loaded> {
+    pub fn load_translation(&self, language: UiLanguage, tags: &TagList) -> Result<Loaded> {
         let buffer = self.container.get_buffer(language)?;
         let def_buffer = self.container.get_def_buffer(language)?;
         let lang_name = ""; // !! We need to be passed this, or is it in the container?
@@ -65,7 +65,7 @@ impl Loader {
         Loaded::load_with_tags(tags, LoadFormat::Vrt, &buffer, lang_name, &def_buffer)
     }
 
-    pub fn list_languages(&self) -> (HashSet<Language>, Vec<String>) {
+    pub fn list_languages(&self) -> (HashSet<UiLanguage>, Vec<String>) {
         match self.container.list_languages() {
             std::result::Result::Ok(language_lists) => language_lists,
 
@@ -218,7 +218,7 @@ impl LoaderContainer {
     }
 
     /// Note: this reads all data into a buffer
-    pub fn get_buffer(&self, language: Language) -> Result<Vec<u8>> {
+    pub fn get_buffer(&self, language: UiLanguage) -> Result<Vec<u8>> {
         match self {
             ZipLoader(zip_file) => {
                 let mut zfile = open_zip(zip_file)?;
@@ -247,7 +247,7 @@ impl LoaderContainer {
     }
 
     /// Note: this reads all language def data into a buffer
-    pub fn get_def_buffer(&self, language: Language) -> Result<Vec<u8>> {
+    pub fn get_def_buffer(&self, language: UiLanguage) -> Result<Vec<u8>> {
         match self {
             ZipLoader(zip_file) => {
                 let mut zfile = open_zip(zip_file)?;
@@ -281,7 +281,7 @@ impl LoaderContainer {
         }
     }
 
-    pub fn list_languages(&self) -> Result<(HashSet<Language>, Vec<String>)> {
+    pub fn list_languages(&self) -> Result<(HashSet<UiLanguage>, Vec<String>)> {
         let mut set = HashSet::new();
         let mut unused = Vec::new();
 
@@ -300,7 +300,7 @@ impl LoaderContainer {
                             if let Some(name) = path.next() {
                                 if let Some(name) = name.to_str() {
                                     // now we can assume all directories hold languages (if they have language.def?)
-                                    if let Some(lang) = Languages::find_internal(name) {
+                                    if let Some(lang) = UiLanguages::find_internal(name) {
                                         Some(lang)
                                     } else {
                                         unused.push(name.to_string()); // add to unused list
@@ -329,7 +329,7 @@ impl LoaderContainer {
                         if path.is_dir() {
                             if let Some(name) = path.file_name() {
                                 if let Some(name) = name.to_str() {
-                                    if let Some(lang) = Languages::find_internal(name) {
+                                    if let Some(lang) = UiLanguages::find_internal(name) {
                                         set.insert(lang);
                                     } else {
                                         unused.push(name.to_string()); // add to unused list
