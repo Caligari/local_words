@@ -24,7 +24,7 @@ use crate::{
         MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_ROWS,
         STRING_WIDTH, TINY_SPACE,
     },
-    languages::{CustomLanguage, UiLanguage, UiLanguages},
+    languages::{CustomLanguage, UiLanguage},
     loader::Loader,
     localize::{arg, fl},
     translation::Translation,
