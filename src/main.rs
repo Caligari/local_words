@@ -13,6 +13,7 @@ mod languages;
 mod loader;
 mod localize;
 mod translation;
+mod words;
 mod writer;
 
 const APP_NAME: &str = "Local Words";

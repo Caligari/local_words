@@ -12,7 +12,7 @@ use eframe::egui::{
     Align, ComboBox, Grid, Key, Label, Layout, RichText, Sense, Separator, Spinner, TextEdit, Ui,
 };
 use enum_iterator::{Sequence, all};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 
 use versions::SemVer;
 
@@ -20,14 +20,14 @@ use crate::{
     app::AppStatus,
     child_windows::{FileDialogStyle, get_new_selected_file, start_file_dialog},
     display::{
-        ACTIVE_COLOR, BETWEEN_COLS, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR,
-        MOD_MAIN_COLOR, MOD_TRANS_COLOR, SMALL_SPACE, STRING_HEIGHT, STRING_RECT, STRING_ROWS,
-        STRING_WIDTH, TINY_SPACE,
+        ACTIVE_COLOR, BETWEEN_COLS, BETWEEN_FIELDS, EDGE_COLUMN_WIDTH, MISSING_COLOR, SMALL_SPACE,
+        STRING_HEIGHT, STRING_RECT, STRING_ROWS, STRING_WIDTH, TINY_SPACE,
     },
     languages::{CustomLanguage, UiLanguage},
     loader::Loader,
     localize::{arg, fl},
     translation::Translation,
+    words::Words,
     writer::{write_master_csv, write_master_xlsx},
 };
 
@@ -92,7 +92,7 @@ impl Dictionary {
     }
 
     pub fn load_core_translation(&mut self, language: UiLanguage, loader: &Loader) -> Result<()> {
-        let tags = &self.words.tags;
+        let tags = self.words.tags();
         let loaded = loader.load_translation(language, tags)?;
         let translation = Translation::from_loaded(&loaded, language, tags);
 
@@ -252,7 +252,7 @@ impl Dictionary {
 
             ui.add_space(BETWEEN_FIELDS);
 
-            let version_text = format!("{}", self.words.versions,);
+            let version_text = format!("{}", self.words.versions(),);
             ui.label(version_text);
 
             ui.add_space(BETWEEN_FIELDS);
@@ -594,7 +594,7 @@ impl Dictionary {
     // ============ Old
 
     pub fn tags(&self) -> &TagList {
-        &self.words.tags
+        self.words.tags()
     }
 
     // pub fn main_translations(&self) -> Vec<&Translation> {
@@ -622,16 +622,16 @@ impl Dictionary {
     // }
 
     pub fn export_base_template(&self, export_path: &Path) -> Result<()> {
-        let language = &self.words.master;
+        let language = self.words.master_translation();
         let ext = export_path
             .extension()
             .map(|os| os.to_string_lossy().to_string());
         let export_data = self
             .words
-            .tags
+            .tags()
             .iter()
             .zip(language.lines())
-            .zip(&self.words.master_context);
+            .zip(self.words.master_context());
 
         match ext.as_deref() {
             Some("csv") => {
@@ -668,7 +668,7 @@ impl Dictionary {
     }
 
     fn get_master_language(&self) -> &Translation {
-        &self.words.master
+        self.words.master_translation()
     }
 
     pub fn external_translations_empty(&self) -> bool {
@@ -797,194 +797,6 @@ impl Display for LanguageType {
                 External => "external",
             }
         )
-    }
-}
-
-// ---------------------
-// Words
-//
-/// The tags, context, and translations for a dictionary of lines, including the primary language and
-/// its translations.
-#[derive(Debug, Clone)]
-struct Words {
-    master: Translation,
-    tags: TagList, // !! changes here imply changes to translations and context
-    core_translations: HashMap<UiLanguage, Translation>,
-    work_translations: HashMap<UiLanguage, Translation>,
-    master_context: ContextList,
-    versions: ContentVersions,
-}
-
-impl Words {
-    pub fn new(master: Translation, tags: TagList) -> Self {
-        let size = tags.len();
-        Words {
-            master,
-            tags,
-            core_translations: HashMap::new(),
-            work_translations: HashMap::new(),
-            master_context: vec![String::new(); size],
-            versions: ContentVersions::default(),
-        }
-    }
-
-    pub fn master_external_language(&self) -> &CustomLanguage {
-        self.master.external_language()
-    }
-
-    fn translation_languages(&self) -> Vec<UiLanguage> {
-        self.core_translations.keys().copied().collect()
-    }
-
-    fn translation_external_languages(&self) -> Vec<CustomLanguage> {
-        self.core_translations
-            .iter()
-            .map(|(_k, trans)| trans.external_language().clone())
-            .collect()
-    }
-
-    fn add_core_translation(&mut self, translation: &Translation) {
-        let language = translation.language();
-
-        if self
-            .core_translations
-            .insert(*language, translation.clone())
-            .is_some()
-        {
-            warn!("replacing existing {language} translation, when adding translation");
-        }
-    }
-
-    fn add_work_translation(&mut self, translation: &Translation) {
-        let language = translation.language();
-
-        if self
-            .core_translations
-            .insert(*language, translation.clone())
-            .is_some()
-        {
-            warn!("replacing existing {language} translation, when adding translation");
-        }
-    }
-
-    fn translation_language(&self, language: UiLanguage) -> Option<(&Translation, LanguageType)> {
-        if language == *self.master.language() {
-            Some((&self.master, LanguageType::Internal))
-        } else if let Some(translation) = self.work_translations.get(&language) {
-            Some((translation, LanguageType::InProgress))
-        } else if let Some(translation) = self.core_translations.get(&language) {
-            // !! I think we want the last one
-            Some((translation, LanguageType::Internal))
-        } else {
-            None
-        }
-    }
-
-    fn translation_present(&self, language: UiLanguage) -> bool {
-        *self.master.language() == language
-            || self.work_translations.contains_key(&language)
-            || self.core_translations.contains_key(&language)
-    }
-
-    /// Warning: this assumes the language is present and asserts if that is not the case
-    fn translation_language_editable(
-        &mut self,
-        language: UiLanguage,
-    ) -> (&mut Translation, LanguageType) {
-        if language == *self.master.language() {
-            (&mut self.master, LanguageType::Internal)
-        } else if self.work_translations.contains_key(&language) {
-            (
-                &mut *self.work_translations.get_mut(&language).unwrap(),
-                LanguageType::InProgress,
-            )
-        } else {
-            // this must be where the language is, or we assert
-            assert!(self.core_translations.contains_key(&language));
-            (
-                &mut *self.core_translations.get_mut(&language).unwrap(),
-                LanguageType::Internal,
-            )
-        }
-    }
-
-    fn number_tags(&self) -> usize {
-        self.tags.len()
-    }
-
-    fn master_line(&self, string_id: usize) -> RichText {
-        // should we be ready to flag modified lines?
-        let (line, c_type) = self.master.line(string_id);
-        let mut ret = RichText::new(line);
-        ret = self.master.language().text_font(ret); // text_font(ret, self.master.language());
-        match c_type {
-            ContentType::InProgress => ret.color(MOD_MAIN_COLOR),
-            ContentType::Master => ret,
-        }
-    }
-
-    // ?? do we need this
-    fn context_line(&self, string_id: usize) -> RichText {
-        if let Some(context) = self.master_context.get(string_id) {
-            self.master.language().text_font(RichText::new(context)) // is this the right language?
-        } else {
-            RichText::new("")
-        }
-    }
-
-    fn context_editable(&mut self, string_id: usize) -> Option<(&mut String, &UiLanguage)> {
-        if string_id < self.master_context.len() {
-            Some((&mut self.master_context[string_id], self.master.language()))
-        } else {
-            None
-        }
-    }
-
-    fn missing_lines(&self, language: Option<UiLanguage>) -> Vec<usize> {
-        if let Some(language) = language
-            && let Some((translation, _l_type)) = self.translation_language(language)
-        {
-            return translation.missing_lines().clone();
-        }
-        Vec::new()
-    }
-
-    fn translation_line(&self, language: UiLanguage, string_id: usize) -> RichText {
-        let (line, c_type) =
-            if let Some((translation, _l_type)) = self.translation_language(language) {
-                // we should flag modified lines
-                translation.line(string_id)
-            } else {
-                (" ", ContentType::Master)
-            };
-        let mut ret = RichText::new(line);
-        ret = language.text_font(ret); // text_font(ret, &language);
-
-        match c_type {
-            ContentType::InProgress => ret.color(MOD_TRANS_COLOR),
-            ContentType::Master => ret,
-        }
-    }
-
-    fn translation_notes(&self, language: UiLanguage, string_id: usize) -> RichText {
-        let notes = if let Some((translation, _l_type)) = self.translation_language(language) {
-            // we should flag modified lines
-            translation.notes(string_id)
-        } else {
-            " "
-        };
-        self.master.language().text_font(RichText::new(notes)) // this is from the master language
-    }
-
-    /// Warning, this assumes the language and string_id are valid, and will assert, otherwise
-    fn translation_notes_editable(
-        &mut self,
-        language: UiLanguage,
-        string_id: usize,
-    ) -> &mut String {
-        assert!(self.translation_present(language));
-        let (translation, _l_type) = self.translation_language_editable(language); // will assert if no language found
-        translation.notes_editable(string_id)
     }
 }
 
@@ -1275,7 +1087,7 @@ impl Display for ContentType {
 // VersionHistory
 //
 #[derive(Debug, Clone)]
-struct ContentVersions {
+pub struct ContentVersions {
     current: BTreeMap<ContentType, DictionaryVersion>, // can we calculate these? I think not
 }
 
