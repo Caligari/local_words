@@ -340,11 +340,11 @@ impl Translation {
     //     Ok(())
     // }
 
-    pub fn language(&self) -> &UiLanguage {
+    pub fn ui_language(&self) -> &UiLanguage {
         &self.language
     }
 
-    pub fn external_language(&self) -> &CustomLanguage {
+    pub fn language(&self) -> &CustomLanguage {
         &self.external_language
     }
 

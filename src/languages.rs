@@ -231,7 +231,7 @@ pub fn select_language(selected: &mut usize, ui: &mut Ui) {
 // External Languages
 // ========================
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 enum LanguageFont {
     #[default]
     Standard,
@@ -258,7 +258,7 @@ impl LanguageFont {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct CustomLanguage {
     id_name: String,
     display_name: String,

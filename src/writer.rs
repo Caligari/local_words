@@ -36,7 +36,7 @@ pub fn create_externals_zip(
     // archive.add_directory_from_path(&internal_path, options)?;
 
     for trans in translations {
-        let filename = trans.language().internal_category_file_name();
+        let filename = trans.ui_language().internal_category_file_name();
         let mut filepath = internal_path.clone();
         filepath.push(filename);
         debug!("write of {} started", filepath.to_string_lossy());
@@ -76,7 +76,7 @@ pub fn create_vrt_zip(
     archive.add_directory_from_path(&internal_path, options)?;
 
     for trans in translations {
-        let filename = trans.language().internal_main_file_name(format);
+        let filename = trans.ui_language().internal_main_file_name(format);
         let mut filepath = internal_path.clone();
         filepath.push(filename);
         debug!("write of {} started", filepath.to_string_lossy());

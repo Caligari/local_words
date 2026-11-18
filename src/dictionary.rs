@@ -187,13 +187,13 @@ impl Dictionary {
                 {
                     debug!("clicked on translation");
                     new_show_state = Some(DictionaryState::Translation(
-                        self.show.selected_language_string(),
+                        self.show.selected_language().cloned(),
                     ));
                 }
                 if self.show.select_language(ui) {
                     // selected new language
                     new_show_state = Some(DictionaryState::Translation(
-                        self.show.selected_language_string(),
+                        self.show.selected_language().cloned(),
                     ));
                 }
                 ui.add_space(TINY_SPACE);
@@ -223,7 +223,7 @@ impl Dictionary {
                 ui.add_space(EDGE_COLUMN_WIDTH);
 
                 // The main content
-                match self.show.state {
+                match self.show.state.clone() {
                     Overview => self.show_overview(ui),
                     Primary => self.show_primary(ui),
                     Translation(lang) => self.show_translation(lang, ui), // !! requires show_string
@@ -259,8 +259,8 @@ impl Dictionary {
 
             let mut trans = self.translations();
             trans.sort_by(|a, b| {
-                let a_name = a.language().name();
-                let b_name = b.language().name();
+                let a_name = a.ui_language().name();
+                let b_name = b.ui_language().name();
                 a_name.cmp(&b_name)
             });
             for tr in trans {
@@ -315,8 +315,8 @@ impl Dictionary {
     }
 
     // !! we need to be able to edit Context (for primary) or Notes (for work? translation)
-    fn show_string(&mut self, translation_language: Option<UiLanguage>, ui: &mut Ui) {
-        let missing_lines = self.words.missing_lines(translation_language);
+    fn show_string(&mut self, translation_language: Option<CustomLanguage>, ui: &mut Ui) {
+        let missing_lines = self.words.missing_lines(translation_language.clone());
         ui.vertical(|ui| {
             // tag selector
             self.tag_selector(missing_lines, ui);
@@ -360,10 +360,10 @@ impl Dictionary {
             ui.add_space(BETWEEN_FIELDS);
             ui.allocate_ui(STRING_RECT, |ui| {
                 ui.set_min_height(STRING_HEIGHT);
-                if let Some(language) = translation_language {
+                if let Some(language) = translation_language.clone() {
                     ui.label(
                         self.words
-                            .translation_line(language, self.show.selected_tag),
+                            .translation_line(&language, self.show.selected_tag),
                     );
                 }
             });
@@ -376,7 +376,7 @@ impl Dictionary {
                 ui.add(
                     TextEdit::multiline(
                         self.words
-                            .translation_notes_editable(language, self.show.selected_tag),
+                            .translation_notes_editable(&language, self.show.selected_tag),
                     )
                     // .font(language.font_selection())  // this should be ui language?
                     .desired_width(STRING_WIDTH * 2.0),
@@ -391,8 +391,8 @@ impl Dictionary {
         });
     }
 
-    fn show_translation(&mut self, language: UiLanguage, ui: &mut Ui) {
-        self.show_string(Some(language), ui);
+    fn show_translation(&mut self, language: Option<CustomLanguage>, ui: &mut Ui) {
+        self.show_string(language, ui);
     }
 
     fn show_primary(&mut self, ui: &mut Ui) {
@@ -576,18 +576,24 @@ impl Dictionary {
     // we expect this is a new translation
     fn add_core_translation(&mut self, translation: Translation) {
         self.words.add_core_translation(&translation);
+        let languages = self.words.translation_external_languages();
+        let not_selected = self.words.master_external_language();
+        self.show = ShowState::default_not_external(languages, not_selected)
     }
 
     // we expect this is a new translation
     fn add_work_translation(&mut self, translation: Translation) {
         self.words.add_core_translation(&translation);
+        let languages = self.words.translation_external_languages();
+        let not_selected = self.words.master_external_language();
+        self.show = ShowState::default_not_external(languages, not_selected)
     }
 
     pub fn translations(&self) -> Vec<&Translation> {
         let langs = self.words.translation_languages();
         langs
             .iter()
-            .filter_map(|l| self.words.translation_language(*l).map(|(trans, _t)| trans))
+            .filter_map(|l| self.words.translation_language(l).map(|(trans, _t)| trans))
             .collect()
     }
 
@@ -639,7 +645,7 @@ impl Dictionary {
                 if let Err(e) = write_master_csv(&export_path, export_data) {
                     error!(
                         "unable to export base template csv for master language {}: {e}",
-                        language.language()
+                        language.ui_language()
                     );
                     Err(e)
                 } else {
@@ -652,7 +658,7 @@ impl Dictionary {
                 if let Err(e) = write_master_xlsx(&export_path, export_data) {
                     error!(
                         "unable to export base template xlsx for master language {}: {e}",
-                        language.language()
+                        language.ui_language()
                     );
                     Err(e)
                 } else {
@@ -674,7 +680,7 @@ impl Dictionary {
     pub fn external_translations_empty(&self) -> bool {
         let langs = self.words.translation_languages();
         for lang in langs {
-            if let Some((_trans, t)) = self.words.translation_language(lang)
+            if let Some((_trans, t)) = self.words.translation_language(&lang)
                 && t >= LanguageType::External
             {
                 return false;
@@ -873,6 +879,12 @@ impl ShowState {
             None
         };
 
+        debug!(
+            "showState: {} languages, selected: {:?}",
+            languages.len(),
+            selected_translation
+        );
+
         ShowState {
             state: DictionaryState::default(),
             languages,
@@ -888,6 +900,14 @@ impl ShowState {
             self.languages[selected].display_name().to_string()
         } else {
             "".to_string()
+        }
+    }
+
+    pub fn selected_language(&self) -> Option<&CustomLanguage> {
+        if let Some(selected) = self.selected_translation {
+            Some(&self.languages[selected])
+        } else {
+            None
         }
     }
 
@@ -955,7 +975,7 @@ enum DictionaryState {
     #[default]
     Overview,
     Primary,
-    Translation(String),
+    Translation(Option<CustomLanguage>),
     Export,
     // DoExport(Receiver<Result<()>>),
 }
@@ -970,7 +990,15 @@ impl Display for DictionaryState {
             match self {
                 Overview => fl!("show_overview"),
                 Primary => fl!("primary"),
-                Translation(lang) => format!("{} {}", fl!("translation"), lang),
+                Translation(lang) => format!(
+                    "{} {}",
+                    fl!("translation"),
+                    if let Some(l) = lang {
+                        l.display_name()
+                    } else {
+                        ""
+                    }
+                ),
                 Export => fl!("show_export"),
                 // DoExport(..) => fl!("show_export"),
             }
@@ -990,7 +1018,7 @@ enum ExportState {
 // DictionaryVersion
 //
 #[derive(Debug, Clone)]
-struct DictionaryVersion {
+pub struct DictionaryVersion {
     version: SemVer,
     note: String,
 }

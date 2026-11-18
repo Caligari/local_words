@@ -19,8 +19,8 @@ use crate::{
 pub struct Words {
     master: Translation,
     tags: TagList, // !! changes here imply changes to translations and context
-    core_translations: HashMap<UiLanguage, Translation>,
-    work_translations: HashMap<UiLanguage, Translation>,
+    core_translations: HashMap<CustomLanguage, Translation>,
+    work_translations: HashMap<CustomLanguage, Translation>,
     master_context: ContextList,
     versions: ContentVersions,
 }
@@ -39,17 +39,17 @@ impl Words {
     }
 
     pub fn master_external_language(&self) -> &CustomLanguage {
-        self.master.external_language()
+        self.master.language()
     }
 
-    pub fn translation_languages(&self) -> Vec<UiLanguage> {
-        self.core_translations.keys().copied().collect()
+    pub fn translation_languages(&self) -> Vec<CustomLanguage> {
+        self.core_translations.keys().cloned().collect()
     }
 
     pub fn translation_external_languages(&self) -> Vec<CustomLanguage> {
-        self.core_translations
+        self.core_translations // only core?
             .iter()
-            .map(|(_k, trans)| trans.external_language().clone())
+            .map(|(_k, trans)| trans.language().clone())
             .collect()
     }
 
@@ -58,7 +58,7 @@ impl Words {
 
         if self
             .core_translations
-            .insert(*language, translation.clone())
+            .insert(language.clone(), translation.clone())
             .is_some()
         {
             warn!("replacing existing {language} translation, when adding translation");
@@ -70,7 +70,7 @@ impl Words {
 
         if self
             .core_translations
-            .insert(*language, translation.clone())
+            .insert(language.clone(), translation.clone())
             .is_some()
         {
             warn!("replacing existing {language} translation, when adding translation");
@@ -95,13 +95,13 @@ impl Words {
 
     pub fn translation_language(
         &self,
-        language: UiLanguage,
+        language: &CustomLanguage,
     ) -> Option<(&Translation, LanguageType)> {
-        if language == *self.master.language() {
+        if *language == *self.master.language() {
             Some((&self.master, LanguageType::Internal))
-        } else if let Some(translation) = self.work_translations.get(&language) {
+        } else if let Some(translation) = self.work_translations.get(language) {
             Some((translation, LanguageType::InProgress))
-        } else if let Some(translation) = self.core_translations.get(&language) {
+        } else if let Some(translation) = self.core_translations.get(language) {
             // !! I think we want the last one
             Some((translation, LanguageType::Internal))
         } else {
@@ -109,29 +109,29 @@ impl Words {
         }
     }
 
-    fn translation_present(&self, language: UiLanguage) -> bool {
-        *self.master.language() == language
-            || self.work_translations.contains_key(&language)
-            || self.core_translations.contains_key(&language)
+    fn translation_present(&self, language: &CustomLanguage) -> bool {
+        *self.master.language() == *language
+            || self.work_translations.contains_key(language)
+            || self.core_translations.contains_key(language)
     }
 
     /// Warning: this assumes the language is present and asserts if that is not the case
     fn translation_language_editable(
         &mut self,
-        language: UiLanguage,
+        language: &CustomLanguage,
     ) -> (&mut Translation, LanguageType) {
-        if language == *self.master.language() {
+        if *language == *self.master.language() {
             (&mut self.master, LanguageType::Internal)
-        } else if self.work_translations.contains_key(&language) {
+        } else if self.work_translations.contains_key(language) {
             (
-                &mut *self.work_translations.get_mut(&language).unwrap(),
+                &mut *self.work_translations.get_mut(language).unwrap(),
                 LanguageType::InProgress,
             )
         } else {
             // this must be where the language is, or we assert
-            assert!(self.core_translations.contains_key(&language));
+            assert!(self.core_translations.contains_key(language));
             (
-                &mut *self.core_translations.get_mut(&language).unwrap(),
+                &mut *self.core_translations.get_mut(language).unwrap(),
                 LanguageType::Internal,
             )
         }
@@ -145,7 +145,7 @@ impl Words {
         // should we be ready to flag modified lines?
         let (line, c_type) = self.master.line(string_id);
         let mut ret = RichText::new(line);
-        ret = self.master.language().text_font(ret); // text_font(ret, self.master.language());
+        ret = self.master.ui_language().text_font(ret); // text_font(ret, self.master.language());
         match c_type {
             ContentType::InProgress => ret.color(MOD_MAIN_COLOR),
             ContentType::Master => ret,
@@ -155,7 +155,7 @@ impl Words {
     // ?? do we need this
     fn context_line(&self, string_id: usize) -> RichText {
         if let Some(context) = self.master_context.get(string_id) {
-            self.master.language().text_font(RichText::new(context)) // is this the right language?
+            self.master.ui_language().text_font(RichText::new(context)) // is this the right language?
         } else {
             RichText::new("")
         }
@@ -163,22 +163,25 @@ impl Words {
 
     pub fn context_editable(&mut self, string_id: usize) -> Option<(&mut String, &UiLanguage)> {
         if string_id < self.master_context.len() {
-            Some((&mut self.master_context[string_id], self.master.language()))
+            Some((
+                &mut self.master_context[string_id],
+                self.master.ui_language(),
+            ))
         } else {
             None
         }
     }
 
-    pub fn missing_lines(&self, language: Option<UiLanguage>) -> Vec<usize> {
+    pub fn missing_lines(&self, language: Option<CustomLanguage>) -> Vec<usize> {
         if let Some(language) = language
-            && let Some((translation, _l_type)) = self.translation_language(language)
+            && let Some((translation, _l_type)) = self.translation_language(&language)
         {
             return translation.missing_lines().clone();
         }
         Vec::new()
     }
 
-    pub fn translation_line(&self, language: UiLanguage, string_id: usize) -> RichText {
+    pub fn translation_line(&self, language: &CustomLanguage, string_id: usize) -> RichText {
         let (line, c_type) =
             if let Some((translation, _l_type)) = self.translation_language(language) {
                 // we should flag modified lines
@@ -187,7 +190,8 @@ impl Words {
                 (" ", ContentType::Master)
             };
         let mut ret = RichText::new(line);
-        ret = language.text_font(ret); // text_font(ret, &language);
+        // ret = language.text_font(ret); // text_font(ret, &language);
+        ret = language.ui_text(ret);
 
         match c_type {
             ContentType::InProgress => ret.color(MOD_TRANS_COLOR),
@@ -195,20 +199,20 @@ impl Words {
         }
     }
 
-    fn translation_notes(&self, language: UiLanguage, string_id: usize) -> RichText {
+    fn translation_notes(&self, language: &CustomLanguage, string_id: usize) -> RichText {
         let notes = if let Some((translation, _l_type)) = self.translation_language(language) {
             // we should flag modified lines
             translation.notes(string_id)
         } else {
             " "
         };
-        self.master.language().text_font(RichText::new(notes)) // this is from the master language
+        self.master.language().ui_text(RichText::new(notes)) // this is from the master language
     }
 
     /// Warning, this assumes the language and string_id are valid, and will assert, otherwise
     pub fn translation_notes_editable(
         &mut self,
-        language: UiLanguage,
+        language: &CustomLanguage,
         string_id: usize,
     ) -> &mut String {
         assert!(self.translation_present(language));
